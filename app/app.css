@@ -266,7 +266,7 @@ input[type=range]{flex:1;accent-color:var(--amber);height:4px}
 .ticks{font:600 11.5px var(--f-m);letter-spacing:-.15em;color:var(--mut)}
 .ticks.read{color:var(--amber)}
 .chanbadge{font:600 10px var(--f-m);padding:1px 5px;border-radius:4px;background:rgba(166,139,255,.15);color:var(--violet);letter-spacing:.04em}
-.chanbadge.app{background:rgba(61,220,151,.1);color:var(--move)}
+.chanbadge.inapp{background:rgba(61,220,151,.1);color:var(--move)}
 .fallback{font-size:11px;color:var(--violet);margin-top:3px;padding:0 4px;display:flex;gap:6px;align-items:center}
 .fallback.wait{color:var(--amber)}
 .spin{width:10px;height:10px;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp 1s linear infinite;display:inline-block}

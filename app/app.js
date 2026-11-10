@@ -566,7 +566,7 @@ function renderThread(){
     const out = m.dir === 'out';
     let meta = `<span class="trip-tag">${m.trip}</span>`;
     if (m.bc) meta += '<span class="chanbadge" style="background:rgba(255,181,71,.12);color:var(--amber)">РАССЫЛКА</span>';
-    meta += `<span class="chanbadge${m.ch === 'app' ? ' app' : ''}">${m.ch === 'app' ? 'APP' : 'SMS'}</span>${hm(m.t)}`;
+    meta += `<span class="chanbadge${m.ch === 'app' ? ' inapp' : ''}">${m.ch === 'app' ? 'APP' : 'SMS'}</span>${hm(m.t)}`;
     if (out) meta += ticks(m);
     let fb = '';
     if (out && m.fb === 'wait') fb = `<div class="fallback wait"><i class="spin"></i>Ждём подтверждения приложения… при недоставке уйдёт SMS</div>`;
@@ -598,7 +598,7 @@ function renderChatInfo(){
       <div class="legend-row"><span class="ticks">✓</span>отправлено</div>
       <div class="legend-row"><span class="ticks">✓✓</span>доставлено</div>
       <div class="legend-row"><span class="ticks read">✓✓</span>прочитано водителем</div>
-      <div class="legend-row"><span class="chanbadge app">APP</span>через приложение</div>
+      <div class="legend-row"><span class="chanbadge inapp">APP</span>через приложение</div>
       <div class="legend-row"><span class="chanbadge">SMS</span>через SMS-шлюз</div></div>`;
 }
 function doSend(){
