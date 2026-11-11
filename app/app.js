@@ -463,17 +463,18 @@ listeners.add(did => {
 });
 
 function phoneSees(d){ return phoneOpen && phoneDriverId === d.id; }
-function isOnline(d){ return phoneSees(d) ? $('#phoneNet').checked : d.appOnline; }
+function isOnline(d){ return phoneSees(d) ? $('#phoneNet').checked : (d.appOnline || isLive(d.id)); }
 
 function sendToDriver(did, text, chan, opts = {}){
   const d = drvById(did);
-  const m = { id: msgSeq++, dir: 'out', text, t: new Date(), ch: 'app', st: 'sent', trip: tripNo(d), fb: null, bc: opts.bc };
+  const m = { id: msgSeq++, gid: opts.gid || newGid(), dir: 'out', text, t: new Date(), ch: 'app', st: 'sent', trip: tripNo(d), fb: null, bc: opts.bc };
   messages[did].push(m); changed(did);
+  if (!opts.remote && !driverMode) syncPublish({ k: 'd2drv', did, text, ch: chan, bc: !!opts.bc, t: m.t, eid: m.gid, ids: ['disp'] });
   if (chan === 'sms'){
     m.ch = 'sms';
     setTimeout(() => { m.st = 'delivered'; changed(did); smsArrived(d, m); }, rnd(1200, 2400));
   } else if (isOnline(d)){
-    setTimeout(() => { m.st = 'delivered'; changed(did); afterDelivered(d, m); }, rnd(500, 1100));
+    setTimeout(() => { if (m.st === 'sent') m.st = 'delivered'; changed(did); afterDelivered(d, m); }, rnd(500, 1100));
   } else {
     m.fb = 'wait'; changed(did);
     setTimeout(() => {
@@ -487,6 +488,7 @@ function sendToDriver(did, text, chan, opts = {}){
   return m;
 }
 function afterDelivered(d, m){
+  if (isLive(d.id)) return;                       // живой водитель: «прочитано» придёт с его телефона
   if (phoneSees(d)){ setTimeout(() => { m.st = 'read'; changed(d.id); }, 900); return; }
   setTimeout(() => {
     m.st = 'read'; changed(d.id);
@@ -494,6 +496,7 @@ function afterDelivered(d, m){
   }, rnd(1800, 5000));
 }
 function smsArrived(d, m){
+  if (isLive(d.id)) return;
   if (phoneSees(d)) showSms(m.text);
   else if (!m.bc || Math.random() < .5) driverReply(d, replyFor(m.text), 'sms', rnd(5000, 9000));
 }
@@ -502,9 +505,10 @@ function driverReply(d, text, ch, delay){
   typingFor.add(d.id); changed(d.id);
   setTimeout(() => { typingFor.delete(d.id); incoming(d.id, text, ch); }, delay);
 }
-function incoming(did, text, ch = 'app', sys = false){
+function incoming(did, text, ch = 'app', sys = false, gidv){
   const d = drvById(did);
-  messages[did].push({ id: msgSeq++, dir: sys ? 'sys' : 'in', text, t: new Date(), ch, st: 'read', trip: tripNo(d) });
+  if (!d || (gidv && messages[did].some(m => m.gid === gidv))) return;
+  messages[did].push({ id: msgSeq++, gid: gidv || newGid(), dir: sys ? 'sys' : 'in', text, t: new Date(), ch, st: 'read', trip: tripNo(d) });
   d.lastSeen = new Date();
   const viewing = cur === 'chat' && chatDriver === did && document.hasFocus();
   if (!viewing){ d.unread++; toastMsg(d, sys ? text : text, ch); }
@@ -519,7 +523,7 @@ function updateUnread(){
 const SPONT = ['На разгрузке очередь, 3 машины перед нами', 'Клиент не принимает, говорит не заказывал. Что делать?', 'Загрузился, выезжаю',
   'Выгрузился, документы подписали', 'Можно заехать на заправку?', 'Пробка на въезде в город, опаздываю минут на 20', 'Ворота закрыты, жду охрану'];
 setInterval(() => {
-  const pool = drivers.filter(d => d.vehicleId && d.appOnline && vehOf(d).mode === 'move' && !phoneSees(d));
+  const pool = drivers.filter(d => d.vehicleId && d.appOnline && vehOf(d).mode === 'move' && !phoneSees(d) && !isLive(d.id));
   if (pool.length && Math.random() < .7) incoming(pick(pool).id, pick(SPONT));
 }, 38000);
 
@@ -534,7 +538,7 @@ function renderConvs(){
     const last = typingFor.has(d.id) ? '<span style="color:var(--amber)">печатает…</span>' : m ? (m.dir === 'out' ? 'Вы: ' : '') + esc(m.text) : '<span>нет сообщений</span>';
     return `<div class="conv${d.id === chatDriver ? ' sel' : ''}" data-d="${d.id}">
       <div class="av"><div class="avatar ${avClass(d.id)}">${initials(d.name)}</div><i class="st${isOnline(d) ? ' on' : ''}"></i></div>
-      <div style="min-width:0"><b>${shortName(d.name)}</b><div class="last">${last}</div></div>
+      <div style="min-width:0"><b>${shortName(d.name)}${isLive(d.id) ? ' <span class="live-tag">LIVE</span>' : ''}</b><div class="last">${last}</div></div>
       <div class="meta">${m ? hm(m.t) : ''}${d.unread ? `<span class="unread">${d.unread}</span>` : v ? `<span class="mono" style="font-size:10.5px">${v.plate}</span>` : ''}</div></div>`;
   }).join('');
 }
@@ -919,7 +923,7 @@ $('#phoneNet').onchange = e => {
 };
 function markPhoneRead(){
   const d = drvById(phoneDriverId); if (!$('#phoneNet').checked) return;
-  messages[d.id].forEach(m => { if (m.dir === 'out' && m.ch === 'app' && m.st === 'delivered') m.st = 'read'; });
+  messages[d.id].forEach(m => { if (m.dir === 'out' && m.ch === 'app' && m.st === 'delivered'){ m.st = 'read'; if (m.remote) syncPublish({ k: 'ack', did: d.id, ref: m.gid, ids: [d.id] }); } });
 }
 function showSms(text){
   const el = $('#phSms'); el.hidden = false;
@@ -950,8 +954,10 @@ function renderPhone(){
 }
 function phoneSend(text, sys){
   if (!$('#phoneNet').checked){ $('#phOffline').textContent = 'Нет интернета: сообщение не отправлено. Включите «Интернет» сверху.'; $('#phOffline').hidden = false; return; }
-  incoming(phoneDriverId, sys ? 'Статус рейса: ' + text : text, 'app', !!sys);
-  if (driverMode) dispatcherAnswer(phoneDriverId, text);
+  const g = newGid(), body = sys ? 'Статус рейса: ' + text : text;
+  incoming(phoneDriverId, body, 'app', !!sys, g);
+  syncPublish({ k: 'drv2d', did: phoneDriverId, text: body, sys: !!sys, eid: g, ids: [phoneDriverId] });
+  if (driverMode && !isLive('disp')) dispatcherAnswer(phoneDriverId, text);
 }
 const DISP_ANSWERS = {
   'Загрузился': 'Отлично! Документы проверили? Хорошей дороги.',
@@ -984,6 +990,7 @@ function enterDispatcher(){
   document.body.dataset.entered = '1';
   setPhoneOpen(false); hideStart();
   show(location.hash.slice(1) || 'monitoring');
+  setTimeout(() => presence(true), 300);
   try { localStorage.setItem('trassa-mode', 'dispatcher'); } catch (e) {}
 }
 function enterDriver(did){
@@ -993,9 +1000,10 @@ function enterDriver(did){
   $('#phoneNet').checked = true; $('#phSms').hidden = true;
   phoneOpen = false; setPhoneOpen(true); changed(old);
   setTimeout(() => { initPhMap(); updatePhMap(true); }, 60);
+  setTimeout(() => presence(true), 300);
   clearInterval(dispTimer);
   dispTimer = setInterval(() => {
-    if (!driverMode || Math.random() < .35) return;
+    if (!driverMode || isLive('disp') || Math.random() < .35) return;
     const t = pick([TEMPLATES[1], TEMPLATES[4], TEMPLATES[5], ['', 'Как дела в пути? Всё в порядке с грузом?'], ['', 'Клиент спрашивает время прибытия, подскажите?']]);
     sendToDriver(phoneDriverId, fillTpl(t[1], drvById(phoneDriverId)), 'auto');
   }, 55000);
@@ -1170,9 +1178,13 @@ const fromName = id => id === 'disp' ? 'Диспетчер' : (drvById(id) ? sho
 function unreadFor(did, key){ const lr = lastRead[did + '|' + key] || 0; return (rooms[key] || []).filter(m => m.from !== did && +m.t > lr).length; }
 function markRead(did, key){ lastRead[did + '|' + key] = Date.now(); }
 function roomPush(key, from, text, extra){
-  const m = Object.assign({ id: msgSeq++, from, text, t: new Date() }, extra || {});
+  extra = extra || {};
+  if (extra.gid && (rooms[key] || []).some(m => m.gid === extra.gid)) return null;
+  const m = { id: msgSeq++, gid: extra.gid || newGid(), from, text, t: extra.t || new Date() };
+  if (extra.silent) m.silent = true; if (extra.sos) m.sos = true;
   (rooms[key] = rooms[key] || []).push(m);
   if (rooms[key].length > 300) rooms[key].shift();
+  if (!extra.remote && myIds().includes(from)) syncPublish({ k: 'room', key, from, text, t: m.t, eid: m.gid, ids: [from] });
   onRoom(key, m); scheduleSave(); return m;
 }
 const roomTyping = new Set();
@@ -1196,6 +1208,7 @@ function simulateReply(key, fromDid, list, delay, force){
   setTimeout(() => { roomTyping.delete(key + '|' + fromDid); roomPush(key, fromDid, pick(list)); }, delay || rnd(3000, 6500));
 }
 setInterval(() => {
+  if (anyLive()) return;                      // идёт живой тест — не засоряем чат придуманными сообщениями
   const pool = drivers.filter(d => d.vehicleId && d.appOnline && d.id !== phoneDriverId);
   if (pool.length && Math.random() < .55) roomPush('general', pick(pool).id, pick(GEN_SPONT));
 }, 70000);
@@ -1242,12 +1255,13 @@ function driversNear(s, km){
   return drivers.filter(d => d.id !== s.did && vehOf(d) && vehOf(d).mode !== 'off')
     .map(d => ({ d, km: distKm(s, vehOf(d)) })).filter(x => x.km <= km).sort((a, b) => a.km - b.km);
 }
-function startSos(did, reason, note){
+function startSos(did, reason, note, opts = {}){
   if (sosOf(did)) return sosOf(did);
-  const d = drvById(did), v = vehOf(d);
-  const s = { id: 'S' + Date.now(), did, reason, note: note || '', t: new Date(), lat: v ? v.lat : 55.75, lng: v ? v.lng : 37.62,
-    stage: 0, stageAt: Date.now(), notified: [], responders: [], declined: [], status: 'active' };
+  const d = drvById(did), v = vehOf(d); if (!d) return null;
+  const s = { id: opts.id || ('S' + DEV + Date.now()), did, reason, note: note || '', t: new Date(), lat: opts.lat ?? (v ? v.lat : 55.75), lng: opts.lng ?? (v ? v.lng : 37.62),
+    stage: 0, stageAt: Date.now(), notified: [], responders: [], declined: [], status: 'active', origin: opts.remote ? 'remote' : DEV };
   sosList.push(s);
+  if (!opts.remote && myIds().includes(did)) syncPublish({ k: 'sos', a: 'start', id: s.id, did, reason, note: s.note, lat: s.lat, lng: s.lng, ids: [did] });
   if (v && v.mode === 'move'){ v.stopUntil = Date.now() + 864e5; v.stopReason = 'SOS'; }   // машина стоит, пока SOS активен
   log('SOS', `${shortName(d.name)}: ${reason}${note ? ' · ' + note : ''}`);
   incoming(did, `SOS · ${reason}${note ? '. ' + note : ''}`, 'app', true);
@@ -1262,23 +1276,25 @@ function sosStage(s){
     s.notified.push(d.id);
     if (phoneOpen && phoneDriverId === d.id){ showSosIncoming(s); return; }
     const p = [.18, .35, .6, .85, .95][Math.min(s.stage, 4)];
-    if (d.appOnline && Math.random() < p) setTimeout(() => sosRespond(s, d.id), rnd(5000, 12000));
+    if (s.origin === DEV && !isLive(d.id) && d.appOnline && Math.random() < p) setTimeout(() => sosRespond(s, d.id), rnd(5000, 12000));
   });
   log('SOS', `${shortName(drvById(s.did).name)}: радиус ${sosRadiusTxt(s)}, оповещено ещё ${fresh.length}`);
   renderSos();
 }
-function sosRespond(s, did){
+function sosRespond(s, did, opts = {}){
   if (s.status !== 'active' || s.responders.some(r => r.did === did)) return;
+  if (!opts.remote && (myIds().includes(did) || s.origin === DEV)) syncPublish({ k: 'sos', a: 'resp', id: s.id, did, ids: myIds().includes(did) ? [did] : [] });
   const v = vehOf(drvById(did)), km = v ? distKm(s, v) : 5, eta = Math.max(3, Math.round(km / 40 * 60 + 2));
   s.responders.push({ did, km, eta, t: new Date() });
   const who = shortName(drvById(did).name), to = shortName(drvById(s.did).name);
-  if (!(phoneOpen && phoneDriverId === did)) roomPush(dmKey(did, s.did), did, `Вижу твой SOS. Еду, буду минут через ${eta}. Держись!`);
+  if (!(phoneOpen && phoneDriverId === did) && !(opts.remote && isLive(did))) roomPush(dmKey(did, s.did), did, `Вижу твой SOS. Еду, буду минут через ${eta}. Держись!`);
   log('SOS', `${who} едет на помощь к ${to} (${kmTxt(km)}, ≈${eta} мин)`);
   if (!driverMode) toast('SOS: помощь едет', `${who} → ${to} · ≈${eta} мин`, () => sosShowOnMap(s.id));
   renderSos();
 }
-function sosClose(s, how){
+function sosClose(s, how, opts = {}){
   if (s.status !== 'active') return;
+  if (!opts.remote && (myIds().includes(s.did) || !driverMode)) syncPublish({ k: 'sos', a: 'close', id: s.id, how, ids: myIds() });
   s.status = 'closed'; s.closedHow = how;
   const sv = vehOf(drvById(s.did)); if (sv && sv.stopReason === 'SOS') sv.stopUntil = Date.now() + 4000;
   log('SOS', `${shortName(drvById(s.did).name)}: закрыт (${how})`);
@@ -1374,7 +1390,7 @@ $('#phSosIn').addEventListener('click', e => {
     sosRespond(s, phoneDriverId); el.hidden = true;
     const r = s.responders.find(x => x.did === phoneDriverId);
     roomPush(dmKey(phoneDriverId, s.did), phoneDriverId, `Вижу твой SOS, еду. Буду минут через ${r ? r.eta : 10}.`, { silent: true });
-    simulateReply(dmKey(phoneDriverId, s.did), s.did, ['Спасибо! Стою на обочине, аварийка включена', 'Спасибо, жду! Я у съезда, увидишь фуру'], 5000, true);
+    if (!isLive(s.did)) simulateReply(dmKey(phoneDriverId, s.did), s.did, ['Спасибо! Стою на обочине, аварийка включена', 'Спасибо, жду! Я у съезда, увидишь фуру'], 5000, true);
     phDm = s.did; setPhTab('drivers');
   }
   if (e.target.closest('[data-sos-no]')){ s.declined.push(phoneDriverId); el.hidden = true; }
@@ -1417,7 +1433,7 @@ function phoneTabHtml(){
     return '<div class="ph-hint">Водители рядом · сортировка по расстоянию</div>' + list.map(({ d, km }) => {
       const key = dmKey(me, d.id), l = (rooms[key] || []).slice(-1)[0], un = unreadFor(me, key);
       return `<button class="ph-row" data-dm="${d.id}"><div class="avatar ${avClass(d.id)}">${initials(d.name)}<i class="st${d.appOnline ? ' on' : ''}"></i></div>
-        <div class="pr-t"><b>${esc(shortName(d.name))}</b><span>${l ? esc((l.from === me ? 'Вы: ' : '') + l.text) : (vehOf(d) ? vehOf(d).plate + ' · ' + vehOf(d).model : '')}</span></div>
+        <div class="pr-t"><b>${esc(shortName(d.name))}${isLive(d.id) ? ' <span class="live-tag">LIVE</span>' : ''}</b><span>${l ? esc((l.from === me ? 'Вы: ' : '') + l.text) : (vehOf(d) ? vehOf(d).plate + ' · ' + vehOf(d).model : '')}</span></div>
         <div class="pr-m">${km < 999 ? kmTxt(km) : ''}${un ? `<i class="unread">${un}</i>` : ''}${sosOf(d.id) ? '<i class="sos-mini">SOS</i>' : ''}</div></button>`;
     }).join('') + '<button class="ph-demo" data-test-sos>Демо: соседний водитель подаёт SOS</button>';
   }
@@ -1446,12 +1462,12 @@ function phoneSendTab(text){
   if (phTab === 'general'){
     roomPush('general', me, text); markRead(me, 'general');
     const pool = drivers.filter(d => d.vehicleId && d.appOnline && d.id !== me);
-    if (pool.length && Math.random() < .7) simulateReply('general', pick(pool).id, /\?/.test(text) ? ['Я видел, всё ок', 'Там свободно', 'Не знаю, спроси у диспетчера'] : GEN_REPLIES);
+    if (!anyLive() && pool.length && Math.random() < .7) simulateReply('general', pick(pool).id, /\?/.test(text) ? ['Я видел, всё ок', 'Там свободно', 'Не знаю, спроси у диспетчера'] : GEN_REPLIES);
     return true;
   }
   if (phTab === 'drivers' && phDm){
     roomPush(dmKey(me, phDm), me, text); markRead(me, dmKey(me, phDm));
-    simulateReply(dmKey(me, phDm), phDm, DM_REPLIES);
+    if (!isLive(phDm)) simulateReply(dmKey(me, phDm), phDm, DM_REPLIES);
     return true;
   }
   return false;
@@ -2281,6 +2297,109 @@ $('#phScan').onclick = () => openScanner({ title: 'Скан → сообщени
 $('#navScan').addEventListener('click', e => { e.preventDefault(); openScanner({ title: 'Распознать текст с фото' }); });
 $('#msScan').onclick = () => { $('#moreSheet').hidden = true; openScanner({ title: 'Распознать текст с фото' }); };
 
+/* =====================================================================
+   СИНХРОНИЗАЦИЯ МЕЖДУ УСТРОЙСТВАМИ — ТЕСТОВЫЙ РЕЖИМ
+   Пересыльщик: публичный ntfy.sh (без регистрации, доступен из России — проверено 2026-11-11).
+   Только для теста: без шифрования, лимит ~250 сообщений в сутки с одного устройства.
+   Синхронизируются: общий чат, личные сообщения водителей, чат диспетчер ↔ водитель, статусы, SOS.
+   ===================================================================== */
+const SYNC_URL = 'https://ntfy.sh/';
+const SYNC_DEFAULT = 'trassa-vs-test-7q4m2k9x';
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+let syncTopic = lsGet('trassa-sync-topic', SYNC_DEFAULT);
+let syncOn = lsGet('trassa-sync-off', '0') !== '1';
+const DEV = lsGet('trassa-dev', '') || (() => { const d = Math.random().toString(36).slice(2, 8); lsSet('trassa-dev', d); return d; })();
+const seenEv = new Set();
+const liveDev = {};                     // другие устройства: dev → { ids: [...], at }
+let es = null, syncState = 'off', lastPresence = 0, gseq = 0, sentToday = 0;
+const newGid = () => DEV + '-' + Date.now().toString(36) + '-' + (gseq++);
+const liveIds = () => [...new Set(Object.values(liveDev).filter(x => Date.now() - x.at < 20 * 60000).flatMap(x => x.ids))];
+const isLive = id => liveIds().includes(id);
+const anyLive = () => liveIds().length > 0;
+function myIds(){ const ids = []; if (!driverMode) ids.push('disp'); if (phoneOpen || driverMode) ids.push(phoneDriverId); return ids; }
+
+function syncPublish(ev){
+  if (!syncOn) return;
+  ev.v = 1; ev.dev = DEV; ev.eid = ev.eid || newGid();
+  seenEv.add(ev.eid); sentToday++;
+  fetch(SYNC_URL + encodeURIComponent(syncTopic), { method: 'POST', body: JSON.stringify(ev) })
+    .then(r => setSync(r.ok ? 'on' : r.status === 429 ? 'limit' : 'error'))
+    .catch(() => setSync('error'));
+}
+function syncConnect(){
+  if (es){ es.close(); es = null; }
+  if (!syncOn || !window.EventSource){ setSync('off'); return; }
+  setSync('connecting');
+  es = new EventSource(SYNC_URL + encodeURIComponent(syncTopic) + '/sse?since=12h');
+  es.onopen = () => setSync('on');
+  es.onerror = () => { if (syncState !== 'limit') setSync('error'); };     // переподключается сам
+  es.onmessage = e => {
+    try { const n = JSON.parse(e.data); if (n.event && n.event !== 'message') return; onSync(JSON.parse(n.message), (n.time || Date.now() / 1000) * 1000); }
+    catch (err) {}
+  };
+}
+function setSync(st){ if (syncState === st) return; syncState = st; renderSyncBadge(); }
+function presence(force){
+  if (!syncOn || (!force && Date.now() - lastPresence < 10 * 60000)) return;
+  lastPresence = Date.now();
+  syncPublish({ k: 'hi', ids: myIds() });
+}
+function renderSyncBadge(){
+  const people = liveIds();
+  const txt = { on: 'онлайн', connecting: 'подключение…', error: 'нет связи', limit: 'лимит на сегодня', off: 'выключено' }[syncState] || syncState;
+  const cls = syncState === 'on' ? 'ok' : syncState === 'connecting' ? 'wait' : 'bad';
+  const who = people.length ? ' · на связи: ' + people.map(id => id === 'disp' ? 'диспетчер' : (drvById(id) ? shortName(drvById(id).name) : id)).join(', ') : '';
+  $$('.sync-badge').forEach(el => { el.classList.remove('ok', 'wait', 'bad'); el.classList.add(cls); el.innerHTML = `<i></i>Синхр. ${txt}${who}`; el.title = 'Тестовая синхронизация между устройствами (ntfy.sh). Код: ' + syncTopic; });
+}
+
+/* ---------- приём событий ---------- */
+function onSync(ev, at){
+  if (!ev || ev.v !== 1 || !ev.eid || ev.dev === DEV || seenEv.has(ev.eid)) return;
+  seenEv.add(ev.eid);
+  const ld = liveDev[ev.dev] = liveDev[ev.dev] || { ids: [], at: 0 };
+  if (ev.k === 'hi' && at >= ld.at) ld.ids = (ev.ids || []).slice();             // устройство сообщило, кто оно сейчас
+  else (ev.ids || []).forEach(id => { if (!ld.ids.includes(id)) ld.ids.push(id); });
+  ld.at = Math.max(ld.at, at);
+  const fresh = Date.now() - at < 15 * 60000;
+  if (ev.k === 'room') roomPush(ev.key, ev.from, ev.text, { gid: ev.eid, remote: true, t: new Date(ev.t || at) });
+  if (ev.k === 'd2drv') remoteToDriver(ev, at);
+  if (ev.k === 'drv2d') remoteFromDriver(ev, at);
+  if (ev.k === 'ack'){ const m = (messages[ev.did] || []).find(x => x.gid === ev.ref); if (m && m.st !== 'read'){ m.st = 'read'; m.fb = null; changed(ev.did); } }
+  if (ev.k === 'sos' && fresh) remoteSos(ev);
+  if (ev.k === 'bye') delete liveDev[ev.dev];
+  renderSyncBadge();
+  if (cur === 'chat') renderConvs();
+}
+function remoteToDriver(ev){
+  const list = messages[ev.did], d = drvById(ev.did);
+  if (!list || !d || list.some(m => m.gid === ev.eid)) return;
+  const m = { id: msgSeq++, gid: ev.eid, dir: 'out', text: ev.text, t: new Date(ev.t), ch: 'app', st: 'delivered', trip: tripNo(d), remote: true, bc: ev.bc };
+  list.push(m);
+  if (phoneOpen && phoneDriverId === ev.did){
+    if (driverMode && phTab !== 'disp') showPush('Диспетчер', ev.text, () => setPhTab('disp'));
+    markPhoneRead();
+  }
+  changed(ev.did); kpiMsgs(); scheduleSave();
+}
+function remoteFromDriver(ev){
+  if (!messages[ev.did] || messages[ev.did].some(m => m.gid === ev.eid)) return;
+  incoming(ev.did, ev.text, 'app', !!ev.sys, ev.eid);
+  const d = drvById(ev.did); if (d){ d.appOnline = true; d.lastSeen = new Date(); }
+}
+function remoteSos(ev){
+  let s = sosList.find(x => x.id === ev.id);
+  if (ev.a === 'start' && !s) startSos(ev.did, ev.reason, ev.note, { remote: true, id: ev.id, lat: ev.lat, lng: ev.lng });
+  if (!s) s = sosList.find(x => x.id === ev.id);
+  if (!s) return;
+  if (ev.a === 'resp') sosRespond(s, ev.did, { remote: true });
+  if (ev.a === 'close') sosClose(s, ev.how || 'закрыт', { remote: true });
+}
+
+/* ---------- запуск ---------- */
+window.addEventListener('pagehide', () => { if (syncOn && anyLive()) navigator.sendBeacon && navigator.sendBeacon(SYNC_URL + encodeURIComponent(syncTopic), JSON.stringify({ v: 1, k: 'bye', dev: DEV, eid: newGid(), ids: myIds() })); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) presence(false); });
+
 /* ================= periodic refresh ================= */
 function clock(){ $('#clock').textContent = hm(new Date()); }
 setInterval(() => {
@@ -2289,13 +2408,15 @@ setInterval(() => {
   if (cur === 'chat') renderChatInfo();
   if (phoneOpen) { $('#phTime').textContent = hm(new Date()); }
   if (driverMode) updatePhMap();
-  sosTick();
+  sosTick(); presence(false);
 }, 1000);
+setInterval(renderSyncBadge, 30000);
 setInterval(() => { if (phoneOpen) renderPhone(); if (cur === 'vehicles') renderVehicles(); }, 5000);
 
 /* ================= boot ================= */
 const restored = restore();
 generateOrders(); refreshPhoneSelect(); updateDocBadge(); updateOrderBadge();
+syncConnect(); renderSyncBadge();
 $('#navClients').textContent = clients.length;
 if (restored) setTimeout(() => toast('Данные восстановлены', 'Все изменения сохраняются на этом устройстве'), 1200);
 clock(); kpiMsgs(); updateUnread(); renderList();

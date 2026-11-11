@@ -866,3 +866,16 @@ body.driver .ph-scan{width:46px;height:46px}
   .df-add{grid-template-columns:1fr}
   .sc-bottom.actions .sc-btn{flex:1;min-width:40%}
 }
+
+/* синхронизация */
+.sync-badge{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tx2);padding:7px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line);margin-bottom:10px;line-height:1.3}
+.sync-badge:empty{display:none}
+.sync-badge i{width:7px;height:7px;border-radius:50%;background:var(--off);flex:none}
+.sync-badge.ok i{background:var(--move);box-shadow:0 0 8px var(--move)}
+.sync-badge.wait i{background:var(--amber)}
+.sync-badge.bad i{background:var(--red)}
+.convs-head .sync-badge{margin:10px 0 0}
+.sync-badge.ph{margin:0 12px 8px;font-size:11px;padding:5px 9px}
+.live-tag{font:700 9px var(--f-m);letter-spacing:.06em;color:#06231a;background:var(--move);padding:1px 5px;border-radius:4px;vertical-align:2px}
+.start-tip{font-size:12.5px;color:var(--tx2);background:rgba(61,220,151,.07);border:1px solid rgba(61,220,151,.25);border-radius:14px;padding:11px 13px;line-height:1.5}
+.start-tip b{color:var(--tx)}

@@ -77,6 +77,7 @@
     </nav>
 
     <div class="nav-foot">
+      <div class="sync-badge"></div>
       <div class="integration" id="integration">
         <div class="int-row"><span class="pulse"></span><b>ГЛОНАСС-мониторинг</b></div>
         <div class="int-meta">EGTS · <span id="intCount">14</span> трекеров · <span id="intPackets">0</span> пакетов</div>
@@ -180,6 +181,7 @@
         <div class="convs">
           <div class="convs-head">
             <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><input id="cSearch" placeholder="Поиск водителя"></div>
+            <div class="sync-badge"></div>
           </div>
           <div class="convs-body" id="convList"></div>
         </div>
@@ -353,6 +355,7 @@
           <button class="ph-sos" id="phSosBtn" title="Сигнал SOS">SOS</button>
           <button class="ph-role" id="phRole" title="Сменить режим"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></button>
         </div>
+        <div class="sync-badge ph"></div>
         <div class="ph-trip" id="phTrip"></div>
         <div class="ph-map" id="phMap"></div>
         <div class="ph-quick" id="phQuick"></div>
@@ -395,6 +398,7 @@
           <div class="rc-row"><select id="startDriver"></select><button class="btn primary" data-role="driver">Войти</button></div>
         </div>
       </div>
+      <div class="start-tip">Тест вдвоём: один выбирает <b>Диспетчер</b>, другой — <b>Водитель</b> (у каждого водителя свой). Общий чат, личные сообщения, статусы и SOS передаются между устройствами.</div>
       <div class="start-foot">Демо-версия · тестовые данные · Vitrina Studio<br><button class="linkbtn" id="resetDemo">Сбросить демо-данные</button></div>
     </div>
   </div>
