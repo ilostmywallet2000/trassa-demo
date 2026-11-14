@@ -123,6 +123,9 @@ const DEMO_USERS = [
   ['tent', 'Артём Волков', 'dispatcher', ['tent'], 'tent1'],
 ];
 const users = DEMO_USERS.map(([login, name, role, fleets, pass]) => ({ id: 'u-' + login, login, name, role, fleets, hash: pwHash(login, pass) }));
+// Настоящий администратор (пароль не хранится в коде — только его отпечаток; сам пароль в ДОСТУПЫ.txt у владельца)
+const OWNER_USERS = [{ id: 'u-yamshchikov', login: 'yamshchikov', name: 'Ямщиков Фёдор Михайлович', role: 'admin', fleets: [], hash: '416ff72d25afa218' }];
+users.unshift(...OWNER_USERS);
 let user = null, fleetView = 'all';
 const userById = id => users.find(u => u.id === id);
 function scopeFleets(){ if (!user) return FLEET_KEYS; if (user.role === 'admin') return fleetView === 'all' ? FLEET_KEYS : [fleetView]; return user.fleets.length ? user.fleets : []; }
@@ -2555,6 +2558,7 @@ setInterval(() => { if (phoneOpen) renderPhone(); if (cur === 'vehicles') render
 
 /* ================= boot ================= */
 const restored = restore();
+OWNER_USERS.forEach(o => { if (!users.some(u => u.login === o.login)) users.unshift(Object.assign({}, o)); });
 generateOrders(); refreshPhoneSelect(); updateDocBadge(); updateOrderBadge();
 syncConnect(); renderSyncBadge();
 $('#navClients').textContent = clients.length;
