@@ -46,29 +46,37 @@ const ROUTE_ENDS = [['domodedovskaya','khimki'],['vnukovo_dir','sokolniki'],['ly
   ['butovo','otradnoe'],['moskva_city','kapotnya'],['medvedkovo','yasenevo'],['perovo','kuntsevo'],['center','izmaylovo']];
 
 const TRACKERS = ['Galileosky 7.0', 'Навтелеком Смарт S-2435', 'Teltonika FMB920', 'Арнави 5', 'Galileosky Base Block'];
+/* Автопарки: у каждого диспетчера свой */
+const FLEETS = {
+  dump:   { name: 'Самосвалы', short: 'Самосвалы', icon: '⛰' },
+  tonar:  { name: 'Тонары', short: 'Тонары', icon: '⛏' },
+  reefer: { name: 'Рефрижераторы', short: 'Рефы', icon: '❄' },
+  tent:   { name: 'Тентованные фуры', short: 'Тенты', icon: '▭' },
+};
+const FLEET_KEYS = Object.keys(FLEETS);
+const fleetName = k => (FLEETS[k] || {}).name || k || '—';
 const vehicles = [
-  ['А482ВК','777','Volvo FH 460','Фура','20 т',0,'move',0],
-  ['В317ОР','799','ГАЗель Next','Фургон','1,5 т',1,'move',.15],
-  ['Е905КМ','750','Hyundai HD78','Среднетоннажный','5 т',2,'move',.3],
-  ['К221ТА','977','Isuzu ELF 7.5','Среднетоннажный','5 т',3,'move',.62],
-  ['М648ХС','197','КАМАЗ 5490','Фура','20 т',4,'move',.08],
-  ['Н073ЕУ','777','Mercedes Sprinter','Фургон','1,8 т',5,'move',.4],
-  ['О554АВ','799','ГАЗон Next','Среднетоннажный','5 т',6,'move',.71],
-  ['Р190СН','750','Ford Transit (реф.)','Фургон','1,5 т',7,'move',.22],
-  ['С836МО','977','ГАЗель Next','Фургон','1,5 т',8,'move',.5],
-  ['Т412РК','197','Валдай 6.5','Среднетоннажный','3,5 т',0,'park',.004],
-  ['У709ЕА','777','Scania R450','Фура','20 т',4,'park',.5],
-  ['Х258ВМ','799','Hyundai Porter','Фургон','1 т',2,'park',.86],
-  ['А930ОТ','750','MAN TGS','Фура','18 т',6,'off',.35],
-  ['В661КС','977','ГАЗель Next','Фургон','1,5 т',5,'off',.83],
+  ['А482ВК','777','КАМАЗ 65115 самосвал','dump','15 т',0,'move',0],
+  ['В317ОР','799','Volvo FH 460 + Тонар 9523','tonar','30 т',1,'move',.15],
+  ['Е905КМ','750','DAF XF + Schmitz SKO (реф.)','reefer','20 т',2,'move',.3],
+  ['К221ТА','977','Scania R450 + Kögel (тент)','tent','20 т',3,'move',.62],
+  ['М648ХС','197','Shacman X3000 самосвал','dump','25 т',4,'move',.08],
+  ['Н073ЕУ','777','Volvo FH + Krone Cool Liner (реф.)','reefer','20 т',5,'move',.4],
+  ['О554АВ','799','Howo T5G самосвал','dump','25 т',6,'move',.71],
+  ['Р190СН','750','Mercedes Actros + Chereau (реф.)','reefer','20 т',7,'move',.22],
+  ['С836МО','977','MAN TGX + Schmitz (тент)','tent','20 т',8,'move',.5],
+  ['Т412РК','197','КАМАЗ 6520 самосвал','dump','20 т',0,'park',.004],
+  ['У709ЕА','777','Scania R450 + Тонар 95231','tonar','30 т',4,'park',.5],
+  ['Х258ВМ','799','Isuzu Forward (реф.)','reefer','8 т',2,'park',.86],
+  ['А930ОТ','750','MAN TGS + Тонар 9585','tonar','28 т',6,'off',.35],
+  ['В661КС','977','КАМАЗ 54901 + Тонар (тент)','tent','20 т',5,'off',.83],
 ].map((v, i) => ({
-  id: 'v' + (i + 1), plate: v[0], reg: v[1], model: v[2], type: v[3], cap: v[4], route: v[5], mode: v[6], s0: v[7],
+  id: 'v' + (i + 1), plate: v[0], reg: v[1], model: v[2], fleet: v[3], type: fleetName(v[3]), cap: v[4], route: v[5], mode: v[6], s0: v[7],
   imei: '86' + String(4400000000000 + i * 7919371 + 1234567).slice(0, 13),
   sim: '+7 9' + (10 + i * 3) + ' ' + (300 + i * 41) + '-' + pad(10 + i * 5) + '-' + pad(30 + i * 3),
   tracker: TRACKERS[i % TRACKERS.length], driverId: null,
-  fuel: Math.round(rnd(28, 92)), volt: (i % 3 ? 27.6 : 13.9) + Math.round(rnd(0, 6)) / 10, temp: v[2].includes('реф') ? -18 : null,
+  fuel: Math.round(rnd(28, 92)), volt: 27.4 + Math.round(rnd(0, 8)) / 10, temp: v[3] === 'reefer' ? (i % 2 ? 4 : -18) : null,
 }));
-vehicles.forEach(v => { if (['Фургон'].includes(v.type) && v.volt > 20) v.volt = 13.8; });
 
 const DN = [
   'Савельев Андрей Викторович','Мухаметов Ринат Ильдарович','Гончаренко Сергей Петрович','Ким Денис Олегович',
@@ -86,9 +94,9 @@ const drivers = DN.map((n, i) => ({
   trips: [23, 31, 18, 27, 22, 19, 25, 16, 29, 14, 20, 17, 12, 21, 9, 6][i],
   cats: i % 4 === 0 || [4, 10, 12].includes(i) ? 'C, CE' : 'B, C',
   appOnline: ![5, 12, 13].includes(i), lastSeen: minsAgo([1, 0, 3, 2, 0, 47, 1, 6, 0, 12, 4, 9, 134, 88, 900, 2000][i]),
-  unread: 0,
+  unread: 0, fleet: i === 15 ? 'reefer' : 'dump',
 }));
-drivers.forEach(d => { if (d.vehicleId) vehicles.find(v => v.id === d.vehicleId).driverId = d.id; });
+drivers.forEach(d => { if (d.vehicleId){ const v = vehicles.find(x => x.id === d.vehicleId); v.driverId = d.id; d.fleet = v.fleet; } });
 const NIGHT = ['d5', 'd8', 'd11', 'd13'];
 const tripNo = d => 'Р-' + (24100 + parseInt(d.id.slice(1)) * 7);
 const drvById = id => drivers.find(d => d.id === id);
@@ -96,6 +104,33 @@ const vehById = id => vehicles.find(v => v.id === id);
 const vehOf = d => d && d.vehicleId ? vehById(d.vehicleId) : null;
 const drvOf = v => v && v.driverId ? drvById(v.driverId) : null;
 const avClass = id => 'a' + (parseInt(String(id).replace(/\D/g, '')) % 6);
+
+/* ================= пользователи и доступ ================= */
+// Демо: пароли проверяются в браузере (хэш). В рабочей версии вход и права — на сервере.
+function pwHash(login, pass){
+  const str = 'trassa|' + String(login).toLowerCase() + '|' + pass;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let r = 0; r < 3; r++) for (let i = 0; i < str.length; i++){ const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+const DEMO_USERS = [
+  ['admin', 'Мария Лаптева', 'admin', [], 'admin2026'],
+  ['samosval', 'Игорь Котов', 'dispatcher', ['dump'], 'samosval1'],
+  ['tonar', 'Олег Сафонов', 'dispatcher', ['tonar'], 'tonar1'],
+  ['ref', 'Наталья Гриднева', 'dispatcher', ['reefer'], 'ref1'],
+  ['tent', 'Артём Волков', 'dispatcher', ['tent'], 'tent1'],
+];
+const users = DEMO_USERS.map(([login, name, role, fleets, pass]) => ({ id: 'u-' + login, login, name, role, fleets, hash: pwHash(login, pass) }));
+let user = null, fleetView = 'all';
+const userById = id => users.find(u => u.id === id);
+function scopeFleets(){ if (!user) return FLEET_KEYS; if (user.role === 'admin') return fleetView === 'all' ? FLEET_KEYS : [fleetView]; return user.fleets.length ? user.fleets : []; }
+const vIn = v => !!v && scopeFleets().includes(v.fleet);
+const dFleet = d => d ? (d.vehicleId && vehById(d.vehicleId) ? vehById(d.vehicleId).fleet : d.fleet) : null;
+const dIn = d => !!d && scopeFleets().includes(dFleet(d));
+const oIn = o => scopeFleets().includes(o.vtype);
+const scopeLabel = () => user && user.role === 'admin' && fleetView === 'all' ? 'Все автопарки' : scopeFleets().map(fleetName).join(', ');
 
 /* ================= state ================= */
 let role = 'dispatcher';
@@ -105,7 +140,7 @@ const logs = [];
 let msgSeq = 1;
 
 function log(action, details){
-  logs.unshift({ t: new Date(), user: 'Игорь Котов', role: role === 'admin' ? 'Администратор' : 'Диспетчер', action, details });
+  logs.unshift({ t: new Date(), user: user ? user.name : '—', role: role === 'admin' ? 'Администратор' : 'Диспетчер' + (user ? ' · ' + scopeFleets().map(k => FLEETS[k].short).join(', ') : ''), action, details });
   if (cur === 'log') renderLog();
   scheduleSave();
 }
@@ -118,7 +153,7 @@ function log(action, details){
 function seed(did, list){
   list.forEach(([m, dir, text, extra]) => messages[did].push(Object.assign({ id: msgSeq++, dir, text, t: minsAgo(m), ch: 'app', st: 'read', trip: tripNo(drvById(did)) }, extra || {})));
 }
-seed('d1', [[96,'out','Андрей, добрый день. Рейс Р-24107: погрузка на складе «Южный», окно 30 минут.'],[94,'in','Добрый, принял. Выезжаю'],[61,'sys','Статус рейса: Загрузился'],[58,'in','Загрузились, 18 паллет. Выехал на Химки'],[22,'out','Как обстановка на Ленинградке?'],[21,'in','Плотно, но едем. Минут через 40 буду']]);
+seed('d1', [[96,'out','Андрей, добрый день. Рейс Р-24107: погрузка на складе «Южный», окно 30 минут.'],[94,'in','Добрый, принял. Выезжаю'],[61,'sys','Статус рейса: Загрузился'],[58,'in','Загрузились песком, 15 т. Выехал на Химки'],[22,'out','Как обстановка на Ленинградке?'],[21,'in','Плотно, но едем. Минут через 40 буду']]);
 seed('d2', [[80,'out','Ринат, по Р-24114 клиент просит позвонить за 30 минут до приезда.'],[79,'in','Понял, наберу'],[12,'in','Подъезжаю к Сокольникам, позвонил клиенту']]);
 seed('d3', [[45,'out','Сергей, где вы сейчас?'],[44,'in','Каширка, в сторону Тушино. Минут 50']]);
 seed('d4', [[30,'out','Денис, после выгрузки пришлите фото накладной.'],[29,'in','Ок']]);
@@ -139,15 +174,16 @@ const VIEWS = {
   orders: ['Заявки', 'Перевозки по дням, повтор по расписанию'],
   clients: ['Клиенты', 'База заказчиков, адреса и контакты'],
   docs: ['Документы', 'Паспорта, ВУ, СТС, ОСАГО, техосмотр — сроки и сканы'],
+  users: ['Пользователи', 'Логины диспетчеров и их автопарки'],
 };
 let cur = null, openThreadNext = false;
 function show(view){
-  if (!VIEWS[view] || (view === 'log' && role !== 'admin')) view = 'monitoring';
+  if (!VIEWS[view] || ((view === 'log' || view === 'users') && role !== 'admin')){ view = 'monitoring'; if (location.hash !== '#monitoring') history.replaceState(null, '', '#monitoring'); }
   cur = view;
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + view));
   $$('.nav-item').forEach(a => a.classList.toggle('on', a.dataset.view === view));
   $('#viewTitle').textContent = VIEWS[view][0];
-  $('#viewSub').textContent = VIEWS[view][1];
+  $('#viewSub').textContent = view === 'monitoring' ? 'Москва · ' + scopeLabel() : VIEWS[view][1];
   if (view === 'monitoring') setTimeout(() => { map.invalidateSize(); if (!fitted) { fitAll(); fitted = true; } }, 30);
   if (view === 'chat') { document.body.classList.toggle('m-thread', openThreadNext); openThreadNext = false; renderConvs(); renderThread(); }
   else document.body.classList.remove('m-thread');
@@ -158,6 +194,7 @@ function show(view){
   if (view === 'orders') renderOrders();
   if (view === 'clients') renderClients();
   if (view === 'docs') renderDocs();
+  if (view === 'users') renderUsers();
 }
 window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
@@ -224,7 +261,7 @@ function pathBack(r, sEnd, len){
 /* vehicle sim init */
 vehicles.forEach((v, i) => {
   const r = R[v.route];
-  v.s = r.total * v.s0; v.base = v.type === 'Фура' ? 58 : v.type === 'Фургон' ? 50 : 47;
+  v.s = r.total * v.s0; v.base = { dump: 44, tonar: 52, reefer: 58, tent: 58 }[v.fleet] || 50;
   v.speed = v.mode === 'move' ? v.base * rnd(.7, 1.05) : 0; v.vt = v.speed; v.stopUntil = 0; v.stopReason = '';
   v.status = v.mode === 'off' ? 'off' : v.mode === 'park' ? 'park' : 'move';
   v.lastSig = v.mode === 'off' ? minsAgo(i === 12 ? 134 : 88) : new Date();
@@ -242,7 +279,16 @@ function setMarkerStatus(v){
   el.querySelector('.body').innerHTML = v.status === 'move' ? '<svg class="arrow" viewBox="0 0 12 12"><path d="M6 0.5 L10.5 11 L6 8.4 L1.5 11z"/></svg>' : '<i class="pin"></i>';
 }
 let fitted = false;
-function fitAll(){ map.fitBounds(L.latLngBounds(vehicles.map(v => [v.lat, v.lng])).pad(.08)); }
+function fitAll(){ const l = vehicles.filter(v => vIn(v) && v.lat); if (l.length) map.fitBounds(L.latLngBounds(l.map(v => [v.lat, v.lng])).pad(l.length > 1 ? .12 : 2)); }
+function applyScope(){
+  vehicles.forEach(v => { const el = v.marker && v.marker.getElement && v.marker.getElement(); if (el) el.style.display = vIn(v) ? '' : 'none'; });
+  if (selVeh && !vIn(vehById(selVeh))){ selVeh = null; renderCard(); }
+  if (!dIn(drvById(chatDriver))) chatDriver = 'general';
+  $('#navDrivers').textContent = drivers.filter(dIn).length; $('#navVehicles').textContent = vehicles.filter(vIn).length;
+  refreshPhoneSelect(); updateUnread(); updateOrderBadge(); updateDocBadge(); renderList(); renderUserChip();
+  if (cur) show(cur);
+  setTimeout(fitAll, 60);
+}
 $('#fitAll').onclick = fitAll;
 
 /* simulation loop */
@@ -296,15 +342,15 @@ const truckSvg = '<svg viewBox="0 0 24 24"><path d="M2.5 7h11v9h-11zM13.5 10h4l3
 const plateHtml = (v, lg) => `<span class="plate${lg ? ' lg' : ''}"><span class="pn">${v.plate.slice(0,1)}&thinsp;${v.plate.slice(1,4)}&thinsp;${v.plate.slice(4)}</span><span class="pr">${v.reg}<i>RUS</i></span></span>`;
 const statusPill = v => v.status === 'move' ? '<span class="pill move">● В движении</span>' : v.status === 'park' ? '<span class="pill park">■ Стоянка</span>' : '<span class="pill off">○ Нет связи</span>';
 function counts(){
-  const c = { move: 0, park: 0, off: 0 }; vehicles.forEach(v => c[v.status]++); return c;
+  const c = { move: 0, park: 0, off: 0 }; vehicles.filter(vIn).forEach(v => c[v.status]++); return c;
 }
 function renderList(){
   const q = $('#vSearch').value.trim().toLowerCase();
   const c = counts();
-  $('#fAll').textContent = vehicles.length; $('#fMove').textContent = c.move; $('#fPark').textContent = c.park; $('#fOff').textContent = c.off;
+  $('#fAll').textContent = vehicles.filter(vIn).length; $('#fMove').textContent = c.move; $('#fPark').textContent = c.park; $('#fOff').textContent = c.off;
   $('#kMove').textContent = c.move; $('#kPark').textContent = c.park; $('#kOff').textContent = c.off;
   const order = { move: 0, park: 1, off: 2 };
-  const list = vehicles.filter(v => (vFilter === 'all' || v.status === vFilter) &&
+  const list = vehicles.filter(v => vIn(v) && (vFilter === 'all' || v.status === vFilter) &&
     (!q || (v.plate + v.reg + v.model + (drvOf(v)?.name || '')).toLowerCase().includes(q)))
     .sort((a, b) => order[a.mode === 'move' ? 'move' : a.status] - order[b.mode === 'move' ? 'move' : b.status] || a.id.localeCompare(b.id, 'en', { numeric: true }));
   $('#vList').innerHTML = list.map(v => {
@@ -511,12 +557,12 @@ function incoming(did, text, ch = 'app', sys = false, gidv){
   messages[did].push({ id: msgSeq++, gid: gidv || newGid(), dir: sys ? 'sys' : 'in', text, t: new Date(), ch, st: 'read', trip: tripNo(d) });
   d.lastSeen = new Date();
   const viewing = cur === 'chat' && chatDriver === did && document.hasFocus();
-  if (!viewing){ d.unread++; toastMsg(d, sys ? text : text, ch); }
+  if (!viewing){ d.unread++; if (dIn(d) && !driverMode) toastMsg(d, text, ch); }
   changed(did); kpiMsgs();
 }
 function kpiMsgs(){ $('#kMsg').textContent = Object.values(messages).reduce((a, l) => a + l.filter(m => m.dir !== 'sys').length, 0); }
 function updateUnread(){
-  const n = drivers.reduce((a, d) => a + d.unread, 0);
+  const n = drivers.filter(dIn).reduce((a, d) => a + d.unread, 0);
   const b = $('#navUnread'); b.hidden = !n; b.textContent = n;
 }
 /* spontaneous messages from drivers */
@@ -531,7 +577,7 @@ setInterval(() => {
 function lastMsg(did){ const l = messages[did]; return l[l.length - 1]; }
 function renderConvs(){
   const q = $('#cSearch').value.trim().toLowerCase();
-  const list = drivers.filter(d => !q || d.name.toLowerCase().includes(q))
+  const list = drivers.filter(d => dIn(d) && (!q || d.name.toLowerCase().includes(q)))
     .sort((a, b) => ((lastMsg(b.id)?.t || 0) - (lastMsg(a.id)?.t || 0)));
   $('#convList').innerHTML = (!q || 'общий чат водителей'.includes(q) ? generalConvHtml() : '') + list.map(d => {
     const m = lastMsg(d.id), v = vehOf(d);
@@ -556,7 +602,7 @@ function ticks(m){
   return '<span class="ticks read" title="Прочитано">✓✓</span>';
 }
 function renderThread(){
-  if (chatDriver === 'general' || !drvById(chatDriver)){ chatDriver = 'general'; return renderGeneralThread(); }
+  if (chatDriver === 'general' || !drvById(chatDriver) || !dIn(drvById(chatDriver))){ chatDriver = 'general'; return renderGeneralThread(); }
   const d = drvById(chatDriver), v = vehOf(d);
   const online = isOnline(d);
   $('#threadHead').innerHTML = `<button class="btn ghost sq m-only" id="thBack" title="Назад">‹</button><div class="avatar ${avClass(d.id)}">${initials(d.name)}</div>
@@ -639,18 +685,19 @@ document.addEventListener('click', e => {
 
 /* ================= broadcast ================= */
 const bcSel = new Set();
-const GROUPS = [
-  ['Все', () => drivers.filter(d => d.vehicleId)],
-  ['На рейсе', () => drivers.filter(d => d.status === 'На рейсе')],
-  ['Фуры', () => drivers.filter(d => vehOf(d)?.type === 'Фура')],
-  ['Фургоны', () => drivers.filter(d => vehOf(d)?.type === 'Фургон')],
-  ['Ночная смена', () => drivers.filter(d => NIGHT.includes(d.id))],
-  ['Нет в приложении', () => drivers.filter(d => d.vehicleId && !isOnline(d))],
+const GROUPS_BASE = [
+  ['Все мои', () => drivers.filter(d => d.vehicleId && dIn(d))],
+  ['На рейсе', () => drivers.filter(d => d.status === 'На рейсе' && dIn(d))],
+  ['Ночная смена', () => drivers.filter(d => NIGHT.includes(d.id) && dIn(d))],
+  ['Нет в приложении', () => drivers.filter(d => d.vehicleId && dIn(d) && !isOnline(d))],
 ];
+let GROUPS = GROUPS_BASE;
+function buildGroups(){ GROUPS = scopeFleets().length > 1 ? [...GROUPS_BASE.slice(0, 2), ...scopeFleets().map(k => [fleetName(k), () => drivers.filter(d => d.vehicleId && dFleet(d) === k)]), ...GROUPS_BASE.slice(2)] : GROUPS_BASE; }
 let bcGroup = -1, bcMsgs = [];
 function renderBroadcast(){
+  buildGroups(); [...bcSel].forEach(id => { if (!dIn(drvById(id))) bcSel.delete(id); });
   $('#bcGroups').innerHTML = GROUPS.map((g, i) => `<button data-g="${i}" class="${bcGroup === i ? 'on' : ''}">${g[0]} <i>${g[1]().length}</i></button>`).join('');
-  $('#bcList').innerHTML = drivers.filter(d => d.vehicleId).map(d => {
+  $('#bcList').innerHTML = drivers.filter(d => d.vehicleId && dIn(d)).map(d => {
     const v = vehOf(d);
     return `<label class="chk"><input type="checkbox" data-d="${d.id}" ${bcSel.has(d.id) ? 'checked' : ''}><div class="avatar ${avClass(d.id)}">${initials(d.name)}</div><b>${shortName(d.name)}</b><small>${v.type} · ${isOnline(d) ? '<span style="color:var(--move)">app</span>' : '<span style="color:var(--violet)">SMS</span>'}</small></label>`;
   }).join('');
@@ -716,9 +763,9 @@ const D_COLS = [
 ];
 function renderDrivers(){
   const q = $('#dSearch').value.trim().toLowerCase(), st = $('#dStatus').value;
-  const rows = drivers.filter(d => (!st || d.status === st) && (!q || (d.name + d.phone + (vehOf(d)?.plate || '')).toLowerCase().includes(q))).sort(sorter(dSort, D_COLS));
+  const rows = drivers.filter(d => dIn(d) && (!st || d.status === st) && (!q || (d.name + d.phone + (vehOf(d)?.plate || '')).toLowerCase().includes(q))).sort(sorter(dSort, D_COLS));
   makeTable($('#dTable'), D_COLS, rows, dSort, k => { dSort = { k, dir: dSort.k === k ? -dSort.dir : 1 }; renderDrivers(); });
-  $('#navDrivers').textContent = drivers.length;
+  $('#navDrivers').textContent = drivers.filter(dIn).length;
 }
 $('#dSearch').addEventListener('input', renderDrivers); $('#dStatus').addEventListener('change', renderDrivers);
 $('#dTable').addEventListener('click', e => { if (e.target.closest('[data-reveal]')) return; const tr = e.target.closest('tbody tr'); if (tr) editDriver(tr.dataset.id); });
@@ -727,7 +774,7 @@ let tSort = { k: 'plate', dir: 1 };
 const T_COLS = [
   { k: 'plate', t: 'Госномер', v: v => v.plate, f: v => plateHtml(v) },
   { k: 'model', t: 'Модель', v: v => v.model, f: v => `<b style="font-weight:600">${esc(v.model)}</b>` },
-  { k: 'type', t: 'Тип', v: v => v.type, f: v => `${v.type} <span class="muted">· ${v.cap}</span>` },
+  { k: 'type', t: 'Автопарк', v: v => v.fleet, f: v => `<span class="fleet-pill f-${v.fleet}">${fleetName(v.fleet)}</span> <span class="muted">· ${v.cap}</span>` },
   { k: 'drv', t: 'Водитель', v: v => drvOf(v)?.name || 'я', f: v => drvOf(v) ? shortName(drvOf(v).name) : '<span class="muted">—</span>' },
   { k: 'tracker', t: 'Трекер', v: v => v.tracker, f: v => esc(v.tracker) },
   { k: 'imei', t: 'IMEI', v: v => v.imei, f: v => `<span class="mono" style="font-size:12px">${v.imei}</span>` },
@@ -737,9 +784,9 @@ const T_COLS = [
 ];
 function renderVehicles(){
   const q = $('#tSearch').value.trim().toLowerCase(), ty = $('#tType').value;
-  const rows = vehicles.filter(v => (!ty || v.type === ty) && (!q || (v.plate + v.reg + v.model + v.imei + v.sim).toLowerCase().includes(q))).sort(sorter(tSort, T_COLS));
+  const rows = vehicles.filter(v => vIn(v) && (!ty || v.fleet === ty) && (!q || (v.plate + v.reg + v.model + v.imei + v.sim).toLowerCase().includes(q))).sort(sorter(tSort, T_COLS));
   makeTable($('#tTable'), T_COLS, rows, tSort, k => { tSort = { k, dir: tSort.k === k ? -tSort.dir : 1 }; renderVehicles(); });
-  $('#navVehicles').textContent = vehicles.length;
+  $('#navVehicles').textContent = vehicles.filter(vIn).length;
 }
 $('#tSearch').addEventListener('input', renderVehicles); $('#tType').addEventListener('change', renderVehicles);
 $('#tTable').addEventListener('click', e => { const tr = e.target.closest('tbody tr'); if (tr) editVehicle(tr.dataset.id); });
@@ -762,8 +809,8 @@ const fld = (lab, html, full) => `<div class="fld${full ? ' full' : ''}"><label>
 const opt = (v, cur, t) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(t ?? v)}</option>`;
 
 function editDriver(id){
-  const isNew = !id; const d = isNew ? { id: 'd' + (drivers.length + 1 + Math.floor(Math.random() * 900)), name: '', phone: '+7 ', status: 'Свободен', vehicleId: null, license: dplus(365), med: dplus(180), trips: 0, cats: 'B, C', appOnline: false, lastSeen: new Date(), unread: 0 } : drvById(id);
-  const freeV = vehicles.filter(v => !v.driverId || v.id === d.vehicleId);
+  const isNew = !id; const d = isNew ? { id: 'd' + (drivers.length + 1 + Math.floor(Math.random() * 900)), name: '', phone: '+7 ', status: 'Свободен', vehicleId: null, license: dplus(365), med: dplus(180), trips: 0, cats: 'C, CE', appOnline: false, lastSeen: new Date(), unread: 0, fleet: scopeFleets()[0] } : drvById(id);
+  const freeV = vehicles.filter(v => vIn(v) && (!v.driverId || v.id === d.vehicleId));
   modal(`<div class="mb-h"><b>${isNew ? 'Новый водитель' : 'Карточка водителя'}</b><button class="x" data-close>×</button></div>
   <div class="mb-b">
     ${fld('ФИО', `<input id="fName" value="${esc(d.name)}" placeholder="Фамилия Имя Отчество">`, true)}
@@ -784,7 +831,7 @@ function editDriver(id){
     const nv = $('#fVeh').value || null;
     if (nv !== d.vehicleId){
       if (d.vehicleId) vehById(d.vehicleId).driverId = null;
-      if (nv) vehById(nv).driverId = d.id;
+      if (nv){ vehById(nv).driverId = d.id; d.fleet = vehById(nv).fleet; }
       changes.push(`ТС → ${nv ? vehById(nv).plate : 'нет'}`);
       d.vehicleId = nv;
     }
@@ -810,11 +857,11 @@ function editVehicle(id){
     ${fld('Госномер', `<input id="gPlate" value="${esc(val('plate'))}" placeholder="А123ВС" maxlength="6" style="text-transform:uppercase">`)}
     ${fld('Регион', `<input id="gReg" value="${esc(val('reg', '77'))}" maxlength="3">`)}
     ${fld('Модель', `<input id="gModel" value="${esc(val('model'))}">`)}
-    ${fld('Тип', `<select id="gType">${['Фургон', 'Среднетоннажный', 'Фура'].map(s => opt(s, val('type', 'Фургон'))).join('')}</select>`)}
+    ${fld('Автопарк', `<select id="gType">${scopeFleets().map(k => opt(k, val('fleet', scopeFleets()[0]), fleetName(k))).join('')}</select>`)}
     ${fld('Трекер ГЛОНАСС', `<select id="gTr">${TRACKERS.map(s => opt(s, val('tracker', TRACKERS[0]))).join('')}</select>`)}
     ${fld('IMEI трекера', `<input id="gImei" class="mono" value="${esc(val('imei'))}" maxlength="15">`)}
     ${fld('SIM-карта трекера', `<input id="gSim" value="${esc(val('sim', '+7 '))}">`)}
-    ${fld('Водитель', `<select id="gDrv"><option value="">— нет —</option>${drivers.filter(d => !d.vehicleId || (v && d.id === v.driverId)).map(d => opt(d.id, v?.driverId, shortName(d.name))).join('')}</select>`)}
+    ${fld('Водитель', `<select id="gDrv"><option value="">— нет —</option>${drivers.filter(d => (dIn(d) || (v && d.id === v.driverId)) && (!d.vehicleId || (v && d.id === v.driverId))).map(d => opt(d.id, v?.driverId, shortName(d.name))).join('')}</select>`)}
     ${isNew ? '' : docsSectionHtml(v.id)}
     <div class="mb-note full">По IMEI система сопоставляет пакеты от трекера (протокол EGTS / Wialon IPS из GLOBARS) с этой машиной.</div>
   </div>
@@ -823,9 +870,9 @@ function editVehicle(id){
     const plate = $('#gPlate').value.trim().toUpperCase(); if (!plate) return $('#gPlate').focus();
     if (isNew){ toast('Демо-версия', 'Новое ТС появится на карте после первого пакета от трекера. В демо добавлено только в таблицу.'); }
     const t = v || newVehicleStub('v' + (vehicles.length + 1 + Math.floor(Math.random() * 900)));
-    Object.assign(t, { plate, reg: $('#gReg').value.trim(), model: $('#gModel').value.trim(), type: $('#gType').value, tracker: $('#gTr').value, imei: $('#gImei').value.trim(), sim: $('#gSim').value.trim() });
+    Object.assign(t, { plate, reg: $('#gReg').value.trim(), model: $('#gModel').value.trim(), fleet: $('#gType').value, type: fleetName($('#gType').value), tracker: $('#gTr').value, imei: $('#gImei').value.trim(), sim: $('#gSim').value.trim() });
     const nd = $('#gDrv').value || null;
-    if (nd !== t.driverId){ if (t.driverId) drvById(t.driverId).vehicleId = null; if (nd) drvById(nd).vehicleId = t.id; t.driverId = nd; }
+    if (nd !== t.driverId){ if (t.driverId) drvById(t.driverId).vehicleId = null; if (nd){ drvById(nd).vehicleId = t.id; drvById(nd).fleet = t.fleet; } t.driverId = nd; }
     if (isNew){ vehicles.push(t); log('Новое ТС', plate); }
     else log('Изменение ТС', plate + ' ' + t.reg);
     closeModal(); renderVehicles(); flashRow('#tTable', t.id); if (!isNew) toast('Сохранено', plate);
@@ -848,9 +895,9 @@ function exportModal(title, csv, fname, n){
   $('#csvCopy').onclick = async () => { try { await navigator.clipboard.writeText(csv.slice(1).replace(/;/g, '\t')); $('#csvCopy').textContent = 'Скопировано ✓'; } catch (e) { $('#csvOut').select(); $('#csvCopy').textContent = 'Выделено, нажмите Ctrl+C'; } };
 }
 $('#dExport').onclick = () => exportModal('водители', toCSV([['ФИО', 'Телефон', 'Статус', 'ТС', 'Категории', 'ВУ до', 'Медсправка до', 'Рейсов за месяц'],
-  ...drivers.map(d => [d.name, role === 'admin' ? d.phone : maskPhone(d), d.status, vehOf(d) ? vehOf(d).plate + ' ' + vehOf(d).reg : '', d.cats, fmtDate(d.license), fmtDate(d.med), d.trips])]), 'drivers.csv', drivers.length);
+  ...drivers.filter(dIn).map(d => [d.name, role === 'admin' ? d.phone : maskPhone(d), d.status, vehOf(d) ? vehOf(d).plate + ' ' + vehOf(d).reg : '', d.cats, fmtDate(d.license), fmtDate(d.med), d.trips])]), 'drivers.csv', drivers.length);
 $('#tExport').onclick = () => exportModal('транспорт', toCSV([['Госномер', 'Регион', 'Модель', 'Тип', 'Грузоподъёмность', 'Водитель', 'Трекер', 'IMEI', 'SIM'],
-  ...vehicles.map(v => [v.plate, v.reg, v.model, v.type, v.cap, drvOf(v)?.name || '', v.tracker, v.imei, v.sim])]), 'vehicles.csv', vehicles.length);
+  ...vehicles.filter(vIn).map(v => [v.plate, v.reg, v.model, v.type, v.cap, drvOf(v)?.name || '', v.tracker, v.imei, v.sim])]), 'vehicles.csv', vehicles.length);
 function parseCSV(text){
   text = text.replace(/^﻿/, ''); const sep = (text.split('\n')[0].match(/;/g) || []).length >= (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
   const rows = []; let row = [], cell = '', q = false;
@@ -877,7 +924,7 @@ function importFile(input, kind){
     } else {
       const iP = col('госномер', 'номер', 'plate'), iM = col('модель', 'model'), iI = col('imei'), iS = col('sim', 'сим');
       rows.slice(1).forEach(r => { const plate = (r[iP] || '').trim().toUpperCase(); if (!plate) return;
-        vehicles.push({ id: 'v' + (100 + vehicles.length + n), plate: plate.slice(0, 6), reg: plate.slice(6).trim() || '77', model: (r[iM] || '').trim(), type: 'Фургон', cap: '—', imei: (r[iI] || '').trim(), sim: (r[iS] || '').trim(), tracker: TRACKERS[0], driverId: null, status: 'off', mode: 'off', speed: 0, lastSig: new Date(0), route: 0, s: 0, half: 1, fuel: 0, volt: 0, temp: null, odo: 0, marker: { getElement: () => null, setLatLng(){} } }); n++; });
+        vehicles.push({ id: 'v' + (100 + vehicles.length + n), plate: plate.slice(0, 6), reg: plate.slice(6).trim() || '77', model: (r[iM] || '').trim(), fleet: scopeFleets()[0], type: fleetName(scopeFleets()[0]), cap: '—', imei: (r[iI] || '').trim(), sim: (r[iS] || '').trim(), tracker: TRACKERS[0], driverId: null, status: 'off', mode: 'off', speed: 0, lastSig: new Date(0), route: 0, s: 0, half: 1, fuel: 0, volt: 0, temp: null, odo: 0, marker: { getElement: () => null, setLatLng(){} } }); n++; });
       renderVehicles();
     }
     log('Импорт', `${kind === 'd' ? 'Водители' : 'Транспорт'}: ${n} строк из ${f.name}`);
@@ -904,7 +951,7 @@ function toastMsg(d, text, ch){
 /* ================= driver phone ================= */
 let phoneOpen = false, phoneDriverId = 'd1', smsTimer = null;
 function refreshPhoneSelect(){
-  $('#phoneDriver').innerHTML = drivers.filter(d => d.vehicleId).map(d => opt(d.id, phoneDriverId, shortName(d.name))).join('');
+  $('#phoneDriver').innerHTML = drivers.filter(d => d.vehicleId && dIn(d)).map(d => opt(d.id, phoneDriverId, shortName(d.name))).join('');
 }
 refreshPhoneSelect();
 function setPhoneOpen(on){
@@ -982,7 +1029,11 @@ listeners.add(did => { if (phoneOpen && did === phoneDriverId){ markPhoneRead();
 let driverMode = false, phMap = null, phMarker = null, phRoute = null, phFitFor = null, dispTimer = null;
 const isApp = /[?&]app\b/.test(location.search) || /TrassaApp/.test(navigator.userAgent);
 function isPhone(){ return window.matchMedia('(max-width:760px)').matches; }
-function fillStart(){ $('#startDriver').innerHTML = drivers.filter(d => d.vehicleId).map(d => opt(d.id, phoneDriverId, shortName(d.name) + ' · ' + vehOf(d).plate)).join(''); }
+function fillStart(){
+  $('#startDriver').innerHTML = FLEET_KEYS.map(k => `<optgroup label="${fleetName(k)}">${drivers.filter(d => d.vehicleId && dFleet(d) === k).map(d => opt(d.id, phoneDriverId, shortName(d.name) + ' · ' + vehOf(d).plate)).join('')}</optgroup>`).join('');
+  const s = lsGet('trassa-session', ''); $('#loginForm').hidden = false;
+  $('#lgLogin').value = s || ''; $('#lgPass').value = ''; $('#lgErr').hidden = true;
+}
 function showStart(){ fillStart(); $('#start').hidden = false; document.body.classList.add('start-open'); }
 function hideStart(){ $('#start').hidden = true; document.body.classList.remove('start-open'); if (cur === 'monitoring' && !driverMode) setTimeout(() => map.invalidateSize(), 30); }
 function enterDispatcher(){
@@ -1010,10 +1061,43 @@ function enterDriver(did){
   try { localStorage.setItem('trassa-mode', 'driver:' + did); } catch (e) {}
 }
 $('#start').addEventListener('click', e => {
+  const demo = e.target.closest('[data-demo]');
+  if (demo){ const u = DEMO_USERS.find(x => x[0] === demo.dataset.demo); $('#lgLogin').value = u[0]; $('#lgPass').value = u[4]; $('#lgErr').hidden = true; return; }
   const b = e.target.closest('[data-role]'); if (!b) return;
-  if (b.dataset.role === 'dispatcher') enterDispatcher(); else enterDriver($('#startDriver').value);
+  if (b.dataset.role === 'driver') enterDriver($('#startDriver').value);
 });
-$('#roleBtn').onclick = showStart;
+$('#loginForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const login = $('#lgLogin').value.trim().toLowerCase(), pass = $('#lgPass').value;
+  const u = users.find(x => x.login.toLowerCase() === login);
+  if (!u || u.hash !== pwHash(u.login, pass)){ $('#lgErr').hidden = false; $('#lgErr').textContent = 'Неверный логин или пароль'; $('#lgPass').select(); return; }
+  signIn(u, true);
+});
+function signIn(u, fresh){
+  user = u; role = u.role === 'admin' ? 'admin' : 'dispatcher'; fleetView = 'all';
+  document.body.classList.toggle('admin', role === 'admin');
+  lsSet('trassa-session', u.login);
+  if (fresh) log('Вход в систему', `${u.name} (${u.login}) · ${scopeLabel()}`);
+  enterDispatcher(); applyScope();
+  if (fresh) toast('Добро пожаловать, ' + u.name.split(' ')[0], scopeLabel());
+}
+function signOut(){
+  if (user) log('Выход', user.name);
+  lsSet('trassa-session', ''); user = null; role = 'dispatcher'; document.body.classList.remove('admin');
+  delete document.body.dataset.entered; setPhoneOpen(false); driverMode = false; document.body.classList.remove('driver');
+  showStart();
+}
+function renderUserChip(){
+  if (!user) return;
+  $('#uName').textContent = user.name; $('#uAva').textContent = initials(user.name);
+  $('#uRole').textContent = user.role === 'admin' ? 'Администратор' : 'Диспетчер · ' + user.fleets.map(k => FLEETS[k].short).join(', ');
+  const fs = $('#fleetSel'); fs.hidden = user.role !== 'admin';
+  if (user.role === 'admin') fs.innerHTML = opt('all', fleetView, 'Все автопарки') + FLEET_KEYS.map(k => opt(k, fleetView, fleetName(k))).join('');
+  $('#fleetChip').hidden = user.role === 'admin'; $('#fleetChip').textContent = scopeLabel();
+}
+$('#fleetSel').onchange = e => { fleetView = e.target.value; applyScope(); toast('Автопарк', scopeLabel()); };
+$('#logoutBtn').onclick = signOut;
+$('#roleBtn').onclick = signOut;
 $('#phRole').onclick = showStart;
 function initPhMap(){
   if (phMap){ phMap.invalidateSize(); return; }
@@ -1054,11 +1138,7 @@ window.appBack = function(){
 };
 
 /* ================= role ================= */
-$('#roleSelect').onchange = e => {
-  role = e.target.value; document.body.classList.toggle('admin', role === 'admin');
-  log('Смена роли', role === 'admin' ? 'Администратор' : 'Диспетчер');
-  toast('Роль: ' + (role === 'admin' ? 'Администратор' : 'Диспетчер'), role === 'admin' ? 'Видны полные телефоны и журнал действий' : 'Телефоны скрыты маской, журнал недоступен');
-  if (cur === 'log' && role !== 'admin') location.hash = 'monitoring';
+if (false){
   show(cur);
 };
 
@@ -1079,12 +1159,12 @@ const seq = { order: 1040, client: 6, tpl: 3, doc: 0 };
 function distKm(a, b){ return map.distance([a.lat, a.lng], [b.lat, b.lng]) / 1000; }
 const kmTxt = km => km < 10 ? km.toFixed(1).replace('.', ',') + ' км' : Math.round(km) + ' км';
 function newVehicleStub(id){
-  return { id, plate: '', reg: '', model: '', type: 'Фургон', cap: '—', imei: '', sim: '', tracker: TRACKERS[0], route: 0, mode: 'off', s: 0, s0: 0, speed: 0, status: 'off',
+  return { id, plate: '', reg: '', model: '', fleet: FLEET_KEYS[0], type: fleetName(FLEET_KEYS[0]), cap: '—', imei: '', sim: '', tracker: TRACKERS[0], route: 0, mode: 'off', s: 0, s0: 0, speed: 0, status: 'off',
     lastSig: new Date(0), fuel: 0, volt: 0, temp: null, base: 40, half: 1, driverId: null, odo: 0, lat: 55.75, lng: 37.62, brg: 0, marker: { getElement: () => null, setLatLng(){} } };
 }
 
 /* ---------- хранение на устройстве (позже — сервер) ---------- */
-const SAVE_KEY = 'trassa-data-v1';
+const SAVE_KEY = 'trassa-data-v2';      // v2: автопарки и учётные записи
 let saveTimer = null, restoring = false;
 function scheduleSave(){ if (restoring) return; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 function saveNow(){
@@ -1093,10 +1173,10 @@ function saveNow(){
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, savedAt: new Date(),
       drivers: drivers.map(d => Object.assign({}, d)),
-      vehicles: vehicles.map(v => ({ id: v.id, plate: v.plate, reg: v.reg, model: v.model, type: v.type, cap: v.cap, imei: v.imei, sim: v.sim, tracker: v.tracker, driverId: v.driverId })),
+      vehicles: vehicles.map(v => ({ id: v.id, plate: v.plate, reg: v.reg, model: v.model, fleet: v.fleet, type: v.type, cap: v.cap, imei: v.imei, sim: v.sim, tracker: v.tracker, driverId: v.driverId })),
       messages: Object.fromEntries(Object.entries(messages).map(([k, l]) => [k, trim(l)])),
       rooms: Object.fromEntries(Object.entries(rooms).map(([k, l]) => [k, trim(l)])),
-      lastRead, orders, clients, templates, docs, seq, userTpls, logs: logs.slice(0, 300),
+      lastRead, orders, clients, templates, docs, seq, userTpls, users, logs: logs.slice(0, 300),
     }));
   } catch (e) { console.warn('Не удалось сохранить', e); }
 }
@@ -1119,7 +1199,7 @@ function restore(){
     Object.entries(data.rooms || {}).forEach(([k, l]) => rooms[k] = l.map(m => Object.assign({}, m, { t: reDate(m.t) })));
     rooms.general = rooms.general || [];
     Object.assign(lastRead, data.lastRead || {});
-    [[orders, data.orders], [clients, data.clients], [templates, data.templates], [docs, data.docs], [userTpls, data.userTpls]].forEach(([arr, src]) => { arr.length = 0; (src || []).forEach(x => arr.push(x)); });
+    [[orders, data.orders], [clients, data.clients], [templates, data.templates], [docs, data.docs], [userTpls, data.userTpls], [users, data.users && data.users.length ? data.users : users.slice()]].forEach(([arr, src]) => { arr.length = 0; (src || []).forEach(x => arr.push(x)); });
     Object.assign(seq, data.seq || {});
     logs.length = 0; (data.logs || []).forEach(l => logs.push(Object.assign({}, l, { t: reDate(l.t) })));
     const ids = [...Object.values(messages).flat(), ...Object.values(rooms).flat()].map(m => m.id || 0);
@@ -1495,24 +1575,24 @@ const clients = [
 const STATUSES = ['Новая', 'Назначена', 'В пути', 'Выполнена', 'Отменена'];
 const ST_CLS = { 'Новая': 'amber', 'Назначена': 'park', 'В пути': 'move', 'Выполнена': 'off', 'Отменена': 'red' };
 const orders = [], templates = [];
-function mkOrder(o){ seq.order++; return Object.assign({ id: 'o' + seq.order, no: 'З-' + seq.order, status: 'Новая', price: 0, note: '', driverId: null, templateId: null, vtype: 'Фургон', weight: '', time: '09:00', created: Date.now() }, o); }
+function mkOrder(o){ seq.order++; return Object.assign({ id: 'o' + seq.order, no: 'З-' + seq.order, status: 'Новая', price: 0, note: '', driverId: null, templateId: null, vtype: 'dump', weight: '', time: '09:00', created: Date.now() }, o); }
 [
-  [0, '06:30', 'k2', 'center', 'izmaylovo', 'Готовая еда, 40 ящиков', '0,6 т', 'Фургон', 'd9', 'Выполнена', 6500],
-  [0, '08:00', 'k3', 'medvedkovo', 'yasenevo', 'Цемент, 30 мешков', '1,5 т', 'Среднетоннажный', 'd7', 'В пути', 14000],
-  [0, '09:00', 'k1', 'domodedovskaya', 'khimki', 'Бакалея, 18 паллет', '16 т', 'Фура', 'd1', 'В пути', 32000],
-  [0, '10:30', 'k6', 'vnukovo_dir', 'sokolniki', 'Молочная продукция (+4°)', '1,2 т', 'Фургон', 'd2', 'В пути', 9800],
-  [0, '13:00', 'k4', 'perovo', 'kuntsevo', 'Мебель, 6 позиций', '0,9 т', 'Фургон', 'd8', 'Назначена', 11500],
-  [0, '15:30', 'k5', 'lyublino', 'tushino', 'Товары для дома', '2 т', 'Среднетоннажный', null, 'Новая', 12000],
-  [0, '17:00', 'k1', 'khimki', 'medvedkovo', 'Возвратная тара', '0,5 т', 'Фургон', null, 'Новая', 5500],
-  [1, '07:00', 'k3', 'butovo', 'medvedkovo', 'Плитка, 8 паллет', '7 т', 'Фура', null, 'Новая', 21000],
-  [1, '11:00', 'k6', 'domodedovskaya', 'center', 'Овощи, охлаждённое', '1 т', 'Фургон', 'd8', 'Назначена', 8700],
-  [2, '09:30', 'k4', 'perovo', 'krylatskoe', 'Кухонный гарнитур', '1,1 т', 'Фургон', null, 'Новая', 12500],
-  [-1, '10:00', 'k5', 'lyublino', 'kapotnya', 'Хозтовары', '1,8 т', 'Среднетоннажный', 'd3', 'Выполнена', 9000],
+  [0, '06:30', 'k2', 'center', 'izmaylovo', 'Готовая еда (+2…+4 °C), 18 паллет', '9 т', 'reefer', 'd8', 'Выполнена', 18500],
+  [0, '08:00', 'k3', 'medvedkovo', 'yasenevo', 'Щебень гранитный 20–40', '25 т', 'dump', 'd7', 'В пути', 14000],
+  [0, '09:00', 'k1', 'domodedovskaya', 'khimki', 'Песок карьерный', '15 т', 'dump', 'd1', 'В пути', 12000],
+  [0, '10:30', 'k6', 'vnukovo_dir', 'sokolniki', 'Молочная продукция (+4 °C)', '14 т', 'reefer', 'd6', 'В пути', 21800],
+  [0, '13:00', 'k4', 'perovo', 'kuntsevo', 'Мебель, 24 паллеты', '10 т', 'tent', 'd4', 'Назначена', 21500],
+  [0, '15:30', 'k5', 'lyublino', 'tushino', 'Асфальтовая крошка', '28 т', 'tonar', 'd2', 'Назначена', 19000],
+  [0, '17:00', 'k1', 'khimki', 'medvedkovo', 'Стройматериалы на паллетах', '18 т', 'tent', null, 'Новая', 23000],
+  [1, '07:00', 'k3', 'butovo', 'medvedkovo', 'Вывоз грунта', '25 т', 'dump', null, 'Новая', 11000],
+  [1, '11:00', 'k6', 'domodedovskaya', 'center', 'Овощи, охлаждённое', '8 т', 'reefer', 'd3', 'Назначена', 15700],
+  [2, '09:30', 'k4', 'perovo', 'krylatskoe', 'Щебень известняковый', '30 т', 'tonar', null, 'Новая', 24500],
+  [-1, '10:00', 'k5', 'lyublino', 'kapotnya', 'Песок мытый', '15 т', 'dump', 'd5', 'Выполнена', 11000],
 ].forEach(([dd, time, cl, a, b, cargo, weight, vtype, drv, st, price]) => orders.push(mkOrder({ date: dayPlus(dd), time, clientId: cl, from: PLACES[a], to: PLACES[b], cargo, weight, vtype, driverId: drv, status: st, price })));
 templates.push(
-  { id: 't1', clientId: 'k2', from: PLACES.center, to: PLACES.izmaylovo, time: '06:30', cargo: 'Готовая еда, 40 ящиков', weight: '0,6 т', vtype: 'Фургон', driverId: 'd9', price: 6500, repeat: { kind: 'daily', days: [], dom: 1 }, start: dayPlus(-20), until: '', active: true, skip: [] },
-  { id: 't2', clientId: 'k3', from: PLACES.medvedkovo, to: PLACES.yasenevo, time: '08:00', cargo: 'Цемент, 30 мешков', weight: '1,5 т', vtype: 'Среднетоннажный', driverId: 'd7', price: 14000, repeat: { kind: 'days', days: [1, 3, 5], dom: 1 }, start: dayPlus(-30), until: '', active: true, skip: [] },
-  { id: 't3', clientId: 'k1', from: PLACES.khimki, to: PLACES.medvedkovo, time: '17:00', cargo: 'Возвратная тара', weight: '0,5 т', vtype: 'Фургон', driverId: null, price: 5500, repeat: { kind: 'weekdays', days: [], dom: 1 }, start: dayPlus(-10), until: '', active: true, skip: [] },
+  { id: 't1', clientId: 'k2', from: PLACES.center, to: PLACES.izmaylovo, time: '06:30', cargo: 'Готовая еда (+2…+4 °C), 18 паллет', weight: '9 т', vtype: 'reefer', driverId: 'd8', price: 18500, repeat: { kind: 'daily', days: [], dom: 1 }, start: dayPlus(-20), until: '', active: true, skip: [] },
+  { id: 't2', clientId: 'k3', from: PLACES.medvedkovo, to: PLACES.yasenevo, time: '08:00', cargo: 'Щебень гранитный 20–40', weight: '25 т', vtype: 'dump', driverId: 'd7', price: 14000, repeat: { kind: 'days', days: [1, 3, 5], dom: 1 }, start: dayPlus(-30), until: '', active: true, skip: [] },
+  { id: 't3', clientId: 'k1', from: PLACES.khimki, to: PLACES.medvedkovo, time: '17:00', cargo: 'Стройматериалы на паллетах', weight: '18 т', vtype: 'tent', driverId: null, price: 23000, repeat: { kind: 'weekdays', days: [], dom: 1 }, start: dayPlus(-10), until: '', active: true, skip: [] },
 );
 orders[0].templateId = 't1'; orders[6].templateId = 't3';
 if (wdOf(dayPlus(0)) === 1 || wdOf(dayPlus(0)) === 3 || wdOf(dayPlus(0)) === 5) orders[1].templateId = 't2';
@@ -1554,7 +1634,7 @@ function generateOrders(){
 }
 setInterval(generateOrders, 60000);
 function updateOrderBadge(){
-  const n = orders.filter(o => o.date === dayPlus(0) && !o.driverId && o.status === 'Новая').length;
+  const n = orders.filter(o => oIn(o) && o.date === dayPlus(0) && !o.driverId && o.status === 'Новая').length;
   const b = $('#navOrders'); b.hidden = !n; b.textContent = n; b.title = 'Заявки на сегодня без водителя';
 }
 
@@ -1565,7 +1645,7 @@ const O_COLS = [
   { k: 'when', t: 'Когда', v: o => o.date + o.time, f: o => `<b>${dayLabel(o.date)}</b> <span class="mono">${o.time}</span>` },
   { k: 'client', t: 'Клиент', v: o => clientById(o.clientId)?.name || '', f: o => esc(clientById(o.clientId)?.name || '—') },
   { k: 'route', t: 'Маршрут', v: o => o.from, f: o => `<div class="route"><span>${esc(o.from)}</span><span>${esc(o.to)}</span></div>` },
-  { k: 'cargo', t: 'Груз', v: o => o.cargo, f: o => `${esc(o.cargo)}<div class="muted">${esc(o.weight)} · ${o.vtype}</div>` },
+  { k: 'cargo', t: 'Груз', v: o => o.cargo, f: o => `${esc(o.cargo)}<div class="muted">${esc(o.weight)} · ${fleetName(o.vtype)}</div>` },
   { k: 'drv', t: 'Водитель', v: o => drvById(o.driverId)?.name || 'я', f: o => drvById(o.driverId) ? `${esc(shortName(drvById(o.driverId).name))}${vehOf(drvById(o.driverId)) ? '<div class="muted mono">' + vehOf(drvById(o.driverId)).plate + '</div>' : ''}` : '<span class="pill amber">не назначен</span>' },
   { k: 'status', t: 'Статус', v: o => STATUSES.indexOf(o.status), f: o => `<span class="pill ${ST_CLS[o.status]}">${o.status}</span>` },
   { k: 'price', t: 'Цена', v: o => +o.price || 0, f: o => o.price ? `<span class="mono">${Number(o.price).toLocaleString('ru')} ₽</span>` : '—' },
@@ -1573,10 +1653,10 @@ const O_COLS = [
 function renderOrders(){
   const q = $('#oSearch').value.trim().toLowerCase(), st = $('#oStatus').value;
   const inRange = o => oRange === 'all' || (oRange === 'today' ? o.date === dayPlus(0) : oRange === 'tomorrow' ? o.date === dayPlus(1) : o.date >= dayPlus(0) && o.date <= dayPlus(6));
-  const rows = orders.filter(o => inRange(o) && (!st || o.status === st) && (!q || [o.no, clientById(o.clientId)?.name, o.from, o.to, o.cargo, drvById(o.driverId)?.name].join(' ').toLowerCase().includes(q))).sort(sorter(oSort, O_COLS));
+  const rows = orders.filter(o => oIn(o) && inRange(o) && (!st || o.status === st) && (!q || [o.no, clientById(o.clientId)?.name, o.from, o.to, o.cargo, drvById(o.driverId)?.name].join(' ').toLowerCase().includes(q))).sort(sorter(oSort, O_COLS));
   makeTable($('#oTable'), O_COLS, rows, oSort, k => { oSort = { k, dir: oSort.k === k ? -oSort.dir : 1 }; renderOrders(); });
   if (!rows.length) $('#oTable tbody').innerHTML = `<tr><td colspan="9" class="empty-row">Заявок нет. Нажмите «+ Заявка» или поменяйте фильтр.</td></tr>`;
-  $('#oTplCount').textContent = templates.filter(t => t.active).length;
+  $('#oTplCount').textContent = templates.filter(t => t.active && scopeFleets().includes(t.vtype)).length;
   updateOrderBadge();
 }
 $('#oSearch').addEventListener('input', renderOrders); $('#oStatus').addEventListener('change', renderOrders);
@@ -1621,8 +1701,8 @@ function editOrder(id, preset){
     ${fld('Куда (выгрузка)', `<input id="ofTo" list="addrList" value="${esc(o.to)}">`, true)}
     ${fld('Груз', `<input id="ofCargo" value="${esc(o.cargo)}" placeholder="Что везём">`)}
     ${fld('Вес / объём', `<input id="ofWeight" value="${esc(o.weight)}" placeholder="1,5 т">`)}
-    ${fld('Тип ТС', `<select id="ofType">${['Фургон', 'Среднетоннажный', 'Фура'].map(v => opt(v, o.vtype)).join('')}</select>`)}
-    ${fld('Водитель', `<select id="ofDrv"><option value="">— не назначен —</option>${drivers.filter(d => d.vehicleId).map(d => opt(d.id, o.driverId, shortName(d.name) + ' · ' + vehOf(d).type)).join('')}</select>`)}
+    ${fld('Автопарк', `<select id="ofType">${scopeFleets().map(k => opt(k, o.vtype, fleetName(k))).join('')}</select>`)}
+    ${fld('Водитель', `<select id="ofDrv"></select>`)}
     ${fld('Статус', `<select id="ofStatus">${STATUSES.map(s => opt(s, o.status)).join('')}</select>`)}
     ${fld('Цена, ₽', `<input type="number" id="ofPrice" value="${o.price || ''}" min="0" step="100">`)}
     ${fld('Комментарий', `<input id="ofNote" value="${esc(o.note)}" placeholder="Пропуск, контакт на месте…">`, true)}
@@ -1634,6 +1714,10 @@ function editOrder(id, preset){
     <button class="btn ghost" id="ofSend" ${o.driverId ? '' : 'hidden'}>Отправить водителю</button>
     <button class="btn primary" id="ofSave">${isNew ? 'Создать' : 'Сохранить'}</button></div>`);
   $('#ofClient').onchange = e => { $('#ofNewClient').hidden = e.target.value !== '__new'; if (e.target.value === '__new') $('#ofNewClient').focus(); };
+  const fillDrv = () => { const k = $('#ofType').value, curD = $('#ofDrv').value || o.driverId;
+    $('#ofDrv').innerHTML = '<option value="">— не назначен —</option>' + drivers.filter(d => d.vehicleId && dFleet(d) === k).map(d => opt(d.id, curD, shortName(d.name) + ' · ' + vehOf(d).plate)).join('');
+    $('#ofSend').hidden = !$('#ofDrv').value; };
+  fillDrv(); $('#ofType').onchange = fillDrv;
   $('#ofDrv').onchange = e => { $('#ofSend').hidden = !e.target.value; };
   bindRepeat(o.time);
   const collect = () => {
@@ -1690,7 +1774,7 @@ function editOrder(id, preset){
     toast('Копия заявки', 'Проверьте дату и нажмите «Создать»');
   };
 }
-function mkOrderDraft(p){ return Object.assign({ id: null, no: '', clientId: clients[0] && clients[0].id, date: dayPlus(0), time: '09:00', from: '', to: '', cargo: '', weight: '', vtype: 'Фургон', driverId: null, status: 'Новая', price: '', note: '', templateId: null }, p || {}); }
+function mkOrderDraft(p){ return Object.assign({ id: null, no: '', clientId: clients[0] && clients[0].id, date: dayPlus(0), time: '09:00', from: '', to: '', cargo: '', weight: '', vtype: scopeFleets()[0] || 'dump', driverId: null, status: 'Новая', price: '', note: '', templateId: null }, p || {}); }
 function sendOrderToDriver(o){
   const c = clientById(o.clientId);
   sendToDriver(o.driverId, `Заявка ${o.no}: ${dayLabel(o.date)} в ${o.time}.\nПогрузка: ${o.from}\nВыгрузка: ${o.to}\nГруз: ${o.cargo}${o.weight ? ' (' + o.weight + ')' : ''}${c ? '\nКлиент: ' + c.name + (c.contact ? ', ' + c.contact + ' ' + c.phone : '') : ''}${o.note ? '\n' + o.note : ''}\nПодтвердите, пожалуйста.`, 'auto');
@@ -1699,10 +1783,10 @@ function sendOrderToDriver(o){
   toast('Отправлено водителю', `${o.no} → ${shortName(drvById(o.driverId).name)}`);
 }
 function showTemplates(){
-  const rows = templates.map(t => {
+  const rows = templates.filter(t => scopeFleets().includes(t.vtype)).map(t => {
     const c = clientById(t.clientId), nx = nextDates(t, 3);
     return `<div class="tpl-row${t.active ? '' : ' off'}" data-t="${t.id}">
-      <div class="tr-t"><b>${esc(c ? c.name : '—')}</b><span>${esc(t.from)} → ${esc(t.to)}</span><span>${esc(t.cargo)}${t.driverId ? ' · ' + esc(shortName(drvById(t.driverId)?.name || '')) : ' · водитель не закреплён'}</span></div>
+      <div class="tr-t"><b>${esc(c ? c.name : '—')}</b><span>${esc(t.from)} → ${esc(t.to)}</span><span>${fleetName(t.vtype)} · ${esc(t.cargo)}${t.driverId ? ' · ' + esc(shortName(drvById(t.driverId)?.name || '')) : ' · водитель не закреплён'}</span></div>
       <div class="tr-r"><span class="pill violet">↻ ${repeatText(t)}</span><small>${t.active ? (nx.length ? 'Дальше: ' + nx.map(dayLabel).join(', ') : 'нет дат') : 'на паузе'}</small>
       <label class="tog"><input type="checkbox" data-act="toggle" ${t.active ? 'checked' : ''}><i></i><span>${t.active ? 'вкл' : 'выкл'}</span></label>
       <button class="btn ghost" data-act="del">Удалить</button></div></div>`;
@@ -1790,7 +1874,7 @@ vehicles.forEach((v, i) => {
   docs.push(mkDoc(v.id, 'СТС', `99 ${pad(30 + i)} ${String(774120 + i * 3119).slice(0, 6)}`, dplus(-900 - i * 30), ''));
   docs.push(mkDoc(v.id, 'ОСАГО', `ХХХ ${String(301228000 + i * 7771).slice(0, 10)}`, dplus(-300 + i * 9), dplus([65, 20, 210, 340, -4, 120, 180, 9, 260, 300, 45, 150, 90, 230][i % 14])));
   docs.push(mkDoc(v.id, 'Диагностическая карта (техосмотр)', `${String(51190 + i * 113)}02242${pad(i)}`, dplus(-200), dplus([160, 300, 25, 210, 90, -12, 330, 140, 60, 280, 12, 200, 110, 70][i % 14])));
-  if (v.type === 'Фура') docs.push(mkDoc(v.id, 'Калибровка тахографа', `К-${4410 + i}`, dplus(-500), dplus([300, 600, 18, 400][i % 4])));
+  if (v.fleet !== 'dump') docs.push(mkDoc(v.id, 'Калибровка тахографа', `К-${4410 + i}`, dplus(-500), dplus([300, 600, 18, 400][i % 4])));
 });
 const docsOf = owner => docs.filter(x => x.owner === owner);
 const ownerName = o => o && o.startsWith('d') ? (drvById(o) ? shortName(drvById(o).name) : '—') : (vehById(o) ? vehById(o).plate + ' ' + vehById(o).reg : '—');
@@ -1810,7 +1894,7 @@ function docsCell(owner){
   const l = docsOf(owner).filter(x => x.expires).sort((a, b) => daysTo(a.expires) - daysTo(b.expires)).slice(0, 2);
   return l.map(x => docHtml(DOC_SHORT[x.kind] || x.kind, x.expires)).join('<br>') || '<span class="muted">—</span>';
 }
-function docAlerts(){ return docs.filter(x => x.expires && daysTo(x.expires) <= 30).length; }
+function docAlerts(){ return docs.filter(x => x.expires && daysTo(x.expires) <= 30 && (x.owner[0] === 'd' ? dIn(drvById(x.owner)) : vIn(vehById(x.owner)))).length; }
 function updateDocBadge(){ const n = docAlerts(), b = $('#navDocs'); b.hidden = !n; b.textContent = n; b.title = 'Просрочены или истекают в течение 30 дней'; }
 function syncDriverDates(owner){
   const d = drvById(owner); if (!d) return;
@@ -1830,7 +1914,8 @@ const X_COLS = [
 function renderDocs(){
   const q = $('#xSearch').value.trim().toLowerCase(), ow = $('#xOwner').value;
   const ok = x => xFilter === 'all' || (xFilter === 'soon' ? x.expires && daysTo(x.expires) >= 0 && daysTo(x.expires) <= 30 : xFilter === 'bad' ? x.expires && daysTo(x.expires) < 0 : !x.files.length);
-  const rows = docs.filter(x => ok(x) && (!ow || x.owner[0] === ow) && (!q || [x.kind, x.number, ownerName(x.owner), x.note].join(' ').toLowerCase().includes(q))).sort(sorter(xSort, X_COLS));
+  const docIn = x => x.owner[0] === 'd' ? dIn(drvById(x.owner)) : vIn(vehById(x.owner));
+  const rows = docs.filter(x => docIn(x) && ok(x) && (!ow || x.owner[0] === ow) && (!q || [x.kind, x.number, ownerName(x.owner), x.note].join(' ').toLowerCase().includes(q))).sort(sorter(xSort, X_COLS));
   makeTable($('#xTable'), X_COLS, rows, xSort, k => { xSort = { k, dir: xSort.k === k ? -xSort.dir : 1 }; renderDocs(); });
   if (!rows.length) $('#xTable tbody').innerHTML = '<tr><td colspan="6" class="empty-row">Ничего не найдено</td></tr>';
   updateDocBadge();
@@ -1937,7 +2022,7 @@ function bindDocsSection(reopen){
 $('#navMore').addEventListener('click', e => { e.preventDefault(); $('#moreSheet').hidden = false; });
 $('#moreSheet').addEventListener('click', e => {
   if (e.target.id === 'moreSheet' || e.target.closest('a')) $('#moreSheet').hidden = true;
-  if (e.target.closest('#msRole')){ $('#moreSheet').hidden = true; const s = $('#roleSelect'); s.value = role === 'admin' ? 'dispatcher' : 'admin'; s.dispatchEvent(new Event('change')); }
+  if (e.target.closest('#msRole')){ $('#moreSheet').hidden = true; signOut(); }
 });
 $('#resetDemo').onclick = () => { const b = $('#resetDemo'); if (b.dataset.c !== '1'){ b.dataset.c = '1'; b.textContent = 'Нажмите ещё раз: удалить все изменения?'; return; } resetDemo(); };
 
@@ -2400,6 +2485,61 @@ function remoteSos(ev){
 window.addEventListener('pagehide', () => { if (syncOn && anyLive()) navigator.sendBeacon && navigator.sendBeacon(SYNC_URL + encodeURIComponent(syncTopic), JSON.stringify({ v: 1, k: 'bye', dev: DEV, eid: newGid(), ids: myIds() })); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) presence(false); });
 
+/* =====================================================================
+   ПОЛЬЗОВАТЕЛИ (только администратор)
+   ===================================================================== */
+let uSort = { k: 'name', dir: 1 };
+const U_COLS = [
+  { k: 'name', t: 'Сотрудник', v: u => u.name, f: u => `<div class="cell-name"><div class="avatar ${u.role === 'admin' ? 'a-amber' : avClass(u.id.length)}">${initials(u.name)}</div><div><b>${esc(u.name)}</b><small>${u.role === 'admin' ? 'Администратор' : 'Диспетчер'}${user && u.id === user.id ? ' · это вы' : ''}</small></div></div>` },
+  { k: 'login', t: 'Логин', v: u => u.login, f: u => `<span class="mono">${esc(u.login)}</span>` },
+  { k: 'fleets', t: 'Автопарки', v: u => u.role === 'admin' ? 'все' : u.fleets.join(), f: u => u.role === 'admin' ? '<span class="pill amber">Все автопарки</span>' : (u.fleets.map(k => `<span class="fleet-pill f-${k}">${fleetName(k)}</span>`).join(' ') || '<span class="pill red">нет доступа</span>') },
+  { k: 'cars', t: 'Машин видит', v: u => (u.role === 'admin' ? vehicles : vehicles.filter(v => u.fleets.includes(v.fleet))).length, f: u => `<span class="mono">${(u.role === 'admin' ? vehicles : vehicles.filter(v => u.fleets.includes(v.fleet))).length}</span>` },
+];
+function renderUsers(){
+  const rows = users.slice().sort(sorter(uSort, U_COLS));
+  makeTable($('#uTable'), U_COLS, rows, uSort, k => { uSort = { k, dir: uSort.k === k ? -uSort.dir : 1 }; renderUsers(); });
+}
+$('#uTable').addEventListener('click', e => { const tr = e.target.closest('tbody tr[data-id]'); if (tr) editUser(tr.dataset.id); });
+$('#uAdd').onclick = () => editUser(null);
+function editUser(id){
+  if (role !== 'admin') return;
+  const isNew = !id, u = isNew ? { id: 'u-' + Date.now().toString(36), login: '', name: '', role: 'dispatcher', fleets: [], hash: '' } : userById(id);
+  modal(`<div class="mb-h"><b>${isNew ? 'Новый пользователь' : esc(u.name)}</b><button class="x" data-close>×</button></div>
+  <div class="mb-b">
+    ${fld('Имя и фамилия', `<input id="ufName" value="${esc(u.name)}" placeholder="Например: Иван Петров">`, true)}
+    ${fld('Логин', `<input id="ufLogin" value="${esc(u.login)}" autocapitalize="none" autocomplete="off" placeholder="латиницей, например samosval2">`)}
+    ${fld('Роль', `<select id="ufRole">${opt('dispatcher', u.role, 'Диспетчер')}${opt('admin', u.role, 'Администратор (видит всё)')}</select>`)}
+    <div class="full fld" id="ufFleetsBox"><label>Автопарки, которые видит диспетчер</label><div class="wd-chips fleet-chips" id="ufFleets">${FLEET_KEYS.map(k => `<button type="button" data-k="${k}" class="${u.fleets.includes(k) ? 'on' : ''}">${fleetName(k)}</button>`).join('')}</div></div>
+    ${fld(isNew ? 'Пароль' : 'Новый пароль', `<input id="ufPass" type="text" autocomplete="new-password" placeholder="${isNew ? 'минимум 6 символов' : 'оставьте пустым, чтобы не менять'}">`, true)}
+    <div class="mb-note full">Диспетчер после входа видит только машины, водителей, заявки и документы своих автопарков. SOS видят все. В рабочей версии пароли будут храниться на сервере в зашифрованном виде.</div>
+  </div>
+  <div class="mb-f">${!isNew && user && u.id !== user.id ? '<button class="btn danger left" id="ufDel">Удалить</button>' : ''}<button class="btn ghost" data-close>Отмена</button><button class="btn primary" id="ufSave">${isNew ? 'Создать' : 'Сохранить'}</button></div>`);
+  const sync = () => { $('#ufFleetsBox').hidden = $('#ufRole').value === 'admin'; };
+  $('#ufRole').onchange = sync; sync();
+  $('#ufFleets').onclick = e => { const b = e.target.closest('button'); if (b) b.classList.toggle('on'); };
+  $('#ufSave').onclick = () => {
+    const name = $('#ufName').value.trim(), login = $('#ufLogin').value.trim().toLowerCase(), pass = $('#ufPass').value, r = $('#ufRole').value;
+    const fl = $$('#ufFleets button.on').map(b => b.dataset.k);
+    const err = !name ? 'Укажите имя' : !/^[a-z0-9._-]{3,}$/.test(login) ? 'Логин: латиница/цифры, от 3 символов' : users.some(x => x.login === login && x.id !== u.id) ? 'Такой логин уже есть'
+      : (isNew || pass) && pass.length < 6 ? 'Пароль — минимум 6 символов' : r === 'dispatcher' && !fl.length ? 'Выберите хотя бы один автопарк' : '';
+    if (err) return toast('Проверьте поля', err);
+    if (user && u.id === user.id && r !== 'admin') return toast('Нельзя', 'Нельзя снять права администратора с себя');
+    const oldLogin = u.login;
+    Object.assign(u, { name, login, role: r, fleets: r === 'admin' ? [] : fl });
+    if (pass || login !== oldLogin) u.hash = pass ? pwHash(login, pass) : u.hash;
+    if (!pass && login !== oldLogin) return toast('Нужен пароль', 'При смене логина задайте новый пароль');
+    if (isNew) users.push(u);
+    log(isNew ? 'Новый пользователь' : 'Изменение пользователя', `${name} (${login}) · ${r === 'admin' ? 'все автопарки' : fl.map(fleetName).join(', ')}${pass ? ' · пароль задан' : ''}`);
+    scheduleSave(); closeModal(); renderUsers(); toast(isNew ? 'Пользователь создан' : 'Сохранено', `${name} · логин ${login}`);
+    if (user && u.id === user.id) renderUserChip();
+  };
+  const del = $('#ufDel');
+  if (del) del.onclick = () => {
+    if (del.dataset.c !== '1'){ del.dataset.c = '1'; del.textContent = 'Точно удалить?'; return; }
+    users.splice(users.indexOf(u), 1); log('Удаление пользователя', `${u.name} (${u.login})`); scheduleSave(); closeModal(); renderUsers();
+  };
+}
+
 /* ================= periodic refresh ================= */
 function clock(){ $('#clock').textContent = hm(new Date()); }
 setInterval(() => {
@@ -2425,9 +2565,8 @@ show(location.hash.slice(1) || 'monitoring');
 if (!location.hash) history.replaceState(null, '', '#monitoring');
 document.body.classList.toggle('is-app', isApp);
 if (isPhone()) $('#msgInput').placeholder = 'Сообщение водителю…';
-if (isApp || isPhone()){
-  showStart();
-}
-if (!isApp && !isPhone()) setTimeout(() => toast('Демо-режим', 'Машины и сообщения тестовые. Откройте «Приложение водителя», чтобы ответить диспетчеру с телефона.', () => setPhoneOpen(true),
+{ const sess = lsGet('trassa-session', ''), u = sess && users.find(x => x.login === sess);
+  if (u) signIn(u, false); else showStart(); }
+if (false) setTimeout(() => toast('Демо-режим', 'Машины и сообщения тестовые. Откройте «Приложение водителя», чтобы ответить диспетчеру с телефона.', () => setPhoneOpen(true),
   '<div class="ic"><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></div>'), 1500);
 })();

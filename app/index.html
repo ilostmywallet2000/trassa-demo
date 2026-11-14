@@ -70,6 +70,10 @@
         <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18.5" cy="12" r="1.6"/></svg>
         <span>Ещё</span>
       </a>
+      <a href="#users" data-view="users" class="nav-item admin-only m-hide">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.4 3-5 6-5s5.4 1.6 6 5"/><path d="M16 5.5a3 3 0 0 1 0 5.6M18 14.3c1.7.6 2.8 2.1 3 4.7"/></svg>
+        <span>Пользователи</span>
+      </a>
       <a href="#log" data-view="log" class="nav-item admin-only m-hide">
         <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg>
         <span>Журнал действий</span>
@@ -107,15 +111,15 @@
         </button>
         <div class="clock" id="clock">--:--</div>
         <button class="btn ghost sq m-only" id="roleBtn" title="Сменить режим"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></button>
+        <select id="fleetSel" class="fleet-sel" title="Какой автопарк показывать" hidden></select>
+        <span id="fleetChip" class="fleet-chip" hidden></span>
         <div class="user">
-          <div class="avatar a-amber">ИК</div>
+          <div class="avatar a-amber" id="uAva">—</div>
           <div class="user-meta">
-            <b>Игорь Котов</b>
-            <select id="roleSelect" title="Роль">
-              <option value="dispatcher">Диспетчер</option>
-              <option value="admin">Администратор</option>
-            </select>
+            <b id="uName">—</b>
+            <span id="uRole" class="u-role">—</span>
           </div>
+          <button class="btn ghost sq" id="logoutBtn" title="Выйти"><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg></button>
         </div>
       </div>
     </header>
@@ -265,8 +269,8 @@
         <div class="toolbar">
           <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><input id="tSearch" placeholder="Госномер, модель, IMEI…"></div>
           <select id="tType" class="sel">
-            <option value="">Все типы</option>
-            <option>Фургон</option><option>Среднетоннажный</option><option>Фура</option>
+            <option value="">Все автопарки</option>
+            <option value="dump">Самосвалы</option><option value="tonar">Тонары</option><option value="reefer">Рефрижераторы</option><option value="tent">Тентованные фуры</option>
           </select>
           <div class="grow"></div>
           <label class="btn ghost">Импорт CSV<input type="file" id="tImport" accept=".csv,text/csv" hidden></label>
@@ -319,6 +323,18 @@
           <button class="btn primary" id="xAdd">+ Документ</button>
         </div>
         <div class="tbl-scroll"><table class="tbl" id="xTable"></table></div>
+      </div>
+    </section>
+
+    <!-- ---------- USERS ---------- -->
+    <section class="view" id="v-users">
+      <div class="tbl-wrap">
+        <div class="toolbar">
+          <span class="muted">Логин и пароль у каждого свой. Диспетчер видит только свои автопарки.</span>
+          <div class="grow"></div>
+          <button class="btn primary" id="uAdd">+ Пользователь</button>
+        </div>
+        <div class="tbl-scroll"><table class="tbl" id="uTable"></table></div>
       </div>
     </section>
 
@@ -387,11 +403,18 @@
         <div class="start-sub">Связь диспетчера и водителей</div>
       </div>
       <div class="start-h">Выберите режим</div>
-      <button class="role-card" data-role="dispatcher">
+      <form class="role-card login" id="loginForm" autocomplete="on">
         <div class="rc-ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></div>
-        <div class="rc-t"><b>Диспетчер</b><span>Карта машин, чат с водителями, рассылки и база</span></div>
-        <i class="rc-go">›</i>
-      </button>
+        <div class="rc-t"><b>Диспетчер / администратор</b><span>Вход по логину и паролю. Каждый видит машины своего автопарка.</span>
+          <input id="lgLogin" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Логин">
+          <input id="lgPass" name="password" type="password" autocomplete="current-password" placeholder="Пароль">
+          <div class="lg-err" id="lgErr" hidden></div>
+          <button class="btn primary lg-go" type="submit">Войти</button>
+          <div class="lg-demo"><span>Тестовые учётки:</span>
+            <button type="button" data-demo="samosval">Самосвалы</button><button type="button" data-demo="tonar">Тонары</button><button type="button" data-demo="ref">Рефрижераторы</button><button type="button" data-demo="tent">Тенты</button><button type="button" data-demo="admin">Админ</button>
+          </div>
+        </div>
+      </form>
       <div class="role-card drv">
         <div class="rc-ic"><svg viewBox="0 0 24 24"><path d="M2.5 7h11v9h-11zM13.5 10h4l3 3v3h-7z"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></div>
         <div class="rc-t"><b>Водитель</b><span>Текущий рейс, статусы и чат с диспетчером</span>
@@ -418,7 +441,8 @@
       <a href="#docs" data-view="docs">Документы</a>
       <button id="msScan" class="ms-scan">📷 Сканер: текст с фото</button>
       <a href="#log" data-view="log" class="admin-only">Журнал действий</a>
-      <button id="msRole">Администратор / диспетчер</button>
+      <a href="#users" data-view="users" class="admin-only">Пользователи</a>
+      <button id="msRole">Выйти</button>
     </div>
   </div>
 </div>

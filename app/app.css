@@ -879,3 +879,30 @@ body.driver .ph-scan{width:46px;height:46px}
 .live-tag{font:700 9px var(--f-m);letter-spacing:.06em;color:#06231a;background:var(--move);padding:1px 5px;border-radius:4px;vertical-align:2px}
 .start-tip{font-size:12.5px;color:var(--tx2);background:rgba(61,220,151,.07);border:1px solid rgba(61,220,151,.25);border-radius:14px;padding:11px 13px;line-height:1.5}
 .start-tip b{color:var(--tx)}
+
+/* вход и автопарки */
+.role-card.login{cursor:default}
+.role-card.login input{display:block;width:100%;height:44px;margin-top:10px;border-radius:12px;background:var(--bg2);border:1px solid var(--line2);padding:0 13px;outline:0;font-size:15px;color:var(--tx)}
+.role-card.login input:focus{border-color:rgba(255,181,71,.55)}
+.lg-go{width:100%;height:46px!important;margin-top:12px;font-size:15px!important}
+.lg-err{margin-top:8px;font-size:12.5px;color:var(--red)}
+.lg-demo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:11.5px;color:var(--mut)}
+.lg-demo span{width:100%}
+.lg-demo button{padding:6px 10px;border-radius:9px;background:var(--panel2);border:1px solid var(--line2);font-size:12px;color:var(--tx2)}
+.lg-demo button:hover{border-color:rgba(255,181,71,.45);color:var(--amber2)}
+.u-role{display:block;font-size:11.5px;color:var(--mut);white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.user #logoutBtn{width:34px;height:34px;margin-left:4px}
+.fleet-sel{height:36px;border-radius:10px;background:var(--amberA);border:1px solid rgba(255,181,71,.4);color:var(--amber2);padding:0 10px;font-weight:600;outline:0;cursor:pointer}
+.fleet-sel option{background:var(--panel);color:var(--tx)}
+.fleet-chip{height:32px;display:inline-flex;align-items:center;padding:0 12px;border-radius:10px;background:var(--amberA);border:1px solid rgba(255,181,71,.35);color:var(--amber2);font-weight:600;font-size:12.5px;white-space:nowrap}
+.fleet-pill{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:7px;background:var(--panel2);border:1px solid var(--line2);white-space:nowrap}
+.fleet-pill.f-dump{color:#ffb37a;border-color:rgba(255,150,80,.35)}
+.fleet-pill.f-tonar{color:#e2c46b;border-color:rgba(226,196,107,.35)}
+.fleet-pill.f-reefer{color:#8fd3ff;border-color:rgba(120,190,255,.35)}
+.fleet-pill.f-tent{color:#b9a8ff;border-color:rgba(166,139,255,.35)}
+.fleet-chips button{width:auto;padding:0 12px}
+@media (max-width:760px){
+  .fleet-sel{order:2;height:32px;font-size:12px;max-width:150px}
+  .fleet-chip{order:2;height:28px;font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  .user #logoutBtn{display:none}
+}
