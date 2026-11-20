@@ -918,3 +918,9 @@ body.scan-open { overflow: hidden; }
   .bk-kinds { grid-template-columns: 1fr; }
   .sc-btn { padding: 0 12px; font-size: 14px; }
 }
+
+/* вход водителем */
+.role.drv .r-ic { background: var(--info); color: #fff; }
+.lg-drv-h > div { display: flex; flex-direction: column; }
+.ldr { transition: border-color .3s, box-shadow .3s; }
+.ldr.hl { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }

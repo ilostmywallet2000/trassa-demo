@@ -41,13 +41,19 @@ function loginView() {
       <div class="roles">
         <button class="role disp" data-a="login" data-r="disp"><span class="r-ic">${ic('pult')}</span><div><b>Диспетчер</b><span>${esc(db.people.disp.name)} · пульт, заявки, отчёты</span></div>${ic('right')}</button>
         <button class="role mech" data-a="login" data-r="mech"><span class="r-ic">${ic('wrench')}</span><div><b>Механик</b><span>${esc(db.people.mech.name)} · машины и документы</span></div>${ic('right')}</button>
+        <button class="role drv" data-a="pickDriver"><span class="r-ic">${ic('truck')}</span><div><b>Водитель</b><span>${db.drivers.length} водителей · выберите себя в списке ниже</span></div>${ic('down')}</button>
       </div>
-      <div class="lg-drv-h"><b>Водитель</b><label class="search sm">${ic('search')}<input id="q-login" data-q="login" placeholder="Имя или номер" value="${esc(UI.q.login || '')}"></label></div>
+      <div class="lg-drv-h" id="lgDrv"><div><b>Войти водителем</b><span class="muted sm">Нажмите на своё имя</span></div><label class="search sm">${ic('search')}<input id="q-login" data-q="login" placeholder="Имя или номер" value="${esc(UI.q.login || '')}"></label></div>
       <div class="lg-drv">${ds.map(d => `<button class="ldr" data-a="login" data-r="driver" data-id="${d.id}">${avatar(d)}<div><b>${esc(d.name)}</b>${statusChip(d)}</div>${plate(vehOf(d.id), 'sm')}</button>`).join('')}</div>
       <button class="btn ghost full" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>
     </section>
   </div>`;
 }
+A.pickDriver = () => {
+  const el = $('#lgDrv'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $$('.ldr').forEach(x => x.classList.add('hl'));
+  setTimeout(() => $$('.ldr').forEach(x => x.classList.toggle('hl', false)), 1600);
+};
 A.login = d => { setWho(d.r === 'driver' ? { role: 'driver', id: d.id } : { role: d.r }); location.hash = '#/' + HOME[d.r]; onRoute(); };
 A.logout = () => { const r = route(); if (who().role === 'driver' && r.page === 'order') Drv.leaveOrder(r.id); try { sessionStorage.removeItem('hq-who'); } catch (e) {} location.hash = '#/login'; render(); };
 A.filter = d => { UI.filter[d.k] = d.v; render(); };
