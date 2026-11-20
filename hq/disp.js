@@ -323,7 +323,7 @@ function vehiclePage(id, role) {
     <div class="card tapin">
       <div class="card-h"><b>Водитель на машине</b>${mech ? '' : '<span class="muted sm">назначает механик</span>'}</div>
       ${d ? `<div class="ti-d">${avatar(d, 'lg')}<div><b>${esc(d.name)}</b>${statusChip(d, true)}<a href="${telHref(d.phone)}" class="link">${ic('phone')}${esc(d.phone)}</a></div></div>` : `<div class="ti-d none">${ic('user')}<b>Никто не назначен</b></div>`}
-      ${mech ? `<div class="row gap wrap"><button class="btn acc grow" data-a="tapIn" data-id="${v.id}">${ic('link')}${d ? 'Пересадить водителя' : 'Посадить водителя (tap in)'}</button>${d ? `<button class="btn ghost" data-a="tapOut" data-id="${v.id}">Снять</button>` : ''}</div>` : ''}
+      ${mech ? `<div class="row gap wrap"><button class="btn acc grow" data-a="tapIn" data-id="${v.id}">${ic('link')}${d ? 'Пересадить водителя' : 'Посадить водителя'}</button>${d ? `<button class="btn ghost" data-a="tapOut" data-id="${v.id}">Снять</button>` : ''}</div>` : ''}
     </div>
     <div class="tabs">${[['main', 'Данные'], ['docs', `Документы <em>${v.docs.length}</em>`], ['log', 'История']].map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-a="tab" data-k="veh-${id}" data-v="${k}">${t}</button>`).join('')}</div>
     ${tab === 'main' ? `<div class="card"><div class="kv-grid">
