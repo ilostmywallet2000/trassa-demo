@@ -560,4 +560,5 @@ function seed() {
 }
 
 db = loadRaw();
-if (!db || db.v !== 1) { db = seed(); saveRaw(); }
+// демо: каждый новый день — свежие данные, чтобы смены и рейсы выглядели «сегодня»
+if (!db || db.v !== 1 || startOfDay(db.seededAt || 0) < startOfDay(now())) { db = seed(); saveRaw(); }

@@ -35,7 +35,7 @@ function loginView() {
       <div class="lg-road"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <small class="lg-foot">Демо-версия · Vitrina Studio · ${new Date().getFullYear()}</small>
     </section>
-    <section class="lg-panel">
+    <section class="lg-panel" data-keep="login">
       <h2>Войти как</h2>
       <p class="muted">Каждая вкладка браузера — отдельный человек. Откройте вторую вкладку и войдите водителем, чтобы увидеть всё вживую.</p>
       <div class="roles">
@@ -154,8 +154,12 @@ function restore(s) {
   if (s.focus) { const el = document.getElementById(s.focus.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(s.focus.ss, s.focus.se); } catch (e) {} } }
   if (s.sameRoute) window.scrollTo(0, s.win);
 }
-let lastHash = '';
+let lastHash = '', pressing = false, renderLater = false;
+document.addEventListener('pointerdown', () => { pressing = true; }, true);
+document.addEventListener('pointerup', () => { setTimeout(() => { pressing = false; if (renderLater) { renderLater = false; render(); } }, 60); }, true);
+document.addEventListener('pointercancel', () => { pressing = false; }, true);
 function render() {
+  if (pressing) { renderLater = true; return; }  // не менять кнопки под пальцем — иначе нажатие теряется
   const w = who(), app = $('#app'), s = snapshot();
   s.sameRoute = lastHash === location.hash; lastHash = location.hash;
   if (!w.role || (w.role === 'driver' && !D(w.id))) { document.body.dataset.role = 'login'; app.innerHTML = loginView(); restore(s); return; }
@@ -226,7 +230,7 @@ setInterval(() => {
       else if (!L.ok) Drv.enterOrder(r.id);
     }
   }
-  if (!typing) render();
+  if (!typing && w.role) render();
 }, 4000);
 
 applyTheme();
