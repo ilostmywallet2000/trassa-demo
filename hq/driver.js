@@ -56,7 +56,7 @@ Drv.home = () => {
   const open = vis.filter(o => orderLeft(o) > 0), spent = vis.filter(o => orderLeft(o) === 0 && now() - (o.spentAt || o.created) < DAY);
   const t0 = startOfDay(now()), today = db.trips.filter(t => t.driverId === d.id && t.state === 'done' && t.doneAt >= t0);
   return `${statusCard(d)}
-    ${at ? `<a class="mytrip ${at.state}" href="#/trip"><div><small>Ваш рейс</small><b>№${ao.no} · ${esc(ao.cargo)}</b><span>${TRIP_STATE[at.state].t}${at.state === 'pending' ? '…' : ' — откройте маршрут'}</span></div>${ic('right')}</a>` : ''}
+    ${at ? `<a class="mytrip ${at.state}" href="#/trip"><div><small>Ваш рейс</small><b>№${ao.no} · ${esc(ao.cargo)}</b><span>В работе — откройте маршрут</span></div>${ic('right')}</a>` : ''}
     <div class="mini-stats"><div><b>${today.length}</b><span>${plural(today.length, 'рейс', 'рейса', 'рейсов')} сегодня</span></div><div><b>${fmtNum(today.reduce((s, t) => s + t.m3, 0))}</b><span>м³ сегодня</span></div><div><b>${open.reduce((s, o) => s + orderLeft(o), 0)}</b><span>свободных рейсов</span></div></div>
     <div class="sec-h"><b>Заявки</b><span>${open.length}</span></div>
     <div class="olist">${open.map(o => orderCard(o, { did: d.id })).join('') || empty('orders', 'Свободных заявок нет', 'Новые заявки появятся здесь и в чате')}</div>
@@ -108,7 +108,7 @@ A.takeTrip = d => {
   if (!r || !r.ok) return toast('Не получилось взять рейс', r && r.why, 'bad');
   delete Drv.lock[d.id];
   if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-  toast('Рейс ваш!', r.trip.state === 'pending' ? 'Ждём подтверждения диспетчера' : 'Можно ехать', 'ok');
+  toast('Рейс ваш!', 'Можно ехать', 'ok');
   go('#/trip');
 };
 
@@ -121,12 +121,12 @@ Drv.trip = () => {
     const o = O(at.orderId);
     html += `<div class="tripcard ${at.state}">
       <div class="tc-h"><small>Рейс по заявке №${o.no}</small><b>${esc(o.cargo)} · ${o.m3} м³</b>
-        <div class="tc-st">${at.state === 'pending' ? '<i class="spin"></i>Ждёт подтверждения диспетчера' : `${ic('check')}Подтверждён — можно ехать`}</div></div>
+        <div class="tc-st">${ic('check')}Рейс ваш — можно ехать</div></div>
     </div>
     ${routeBlock(o, true)}
     ${o.note ? `<div class="note">${ic('alert')}${esc(o.note)}</div>` : ''}
     <div class="trip-acts">
-      <button class="btn ok xl" data-a="completeTrip" data-id="${at.id}" ${at.state === 'pending' ? 'disabled' : ''}>${ic('flag')}Завершить рейс и прикрепить ТТН</button>
+      <button class="btn ok xl" data-a="completeTrip" data-id="${at.id}">${ic('flag')}Завершить рейс и прикрепить ТТН</button>
       <button class="btn ghost" data-a="cancelTrip" data-id="${at.id}">Отказаться от рейса</button>
     </div>`;
   } else html += empty('truck', 'Сейчас рейса нет', 'Возьмите рейс в заявках', `<a class="btn acc" href="#/orders">${ic('orders')}К заявкам</a>`);

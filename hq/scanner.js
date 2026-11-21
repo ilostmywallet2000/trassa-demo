@@ -53,9 +53,16 @@ const Scanner = (() => {
       $('#scShot').onclick = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); stopCam(); crop(c); };
     } catch (e) {
       if (!msg) return;
-      msg.innerHTML = `Камера недоступна<br><small>${esc(e.message || e.name || 'нет разрешения')}</small><br><br><label class="btn acc sc-gal">${ic('upload')}Выбрать фото<input type="file" accept="image/*" multiple hidden></label>`;
-      msg.querySelector('input').onchange = ev => { S.queue = Array.from(ev.target.files || []); nextFromQueue(); };
-      $('#scShot').hidden = true;
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      msg.innerHTML = `<div class="sc-fallback">
+        <b>Снимите документ камерой телефона</b>
+        <p>${denied ? 'Браузер не дал доступ к камере.' : 'Встроенная камера здесь недоступна.'} Так бывает, если ссылку открыли внутри Telegram или WhatsApp, или доступ к камере запрещён. Нажмите кнопку — откроется обычная камера телефона, а обрезка и PDF сработают как обычно.</p>
+        <label class="btn acc xl">${ic('camera')}Сфотографировать<input type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="btn soft">${ic('upload')}Выбрать из галереи<input type="file" accept="image/*" multiple hidden></label>
+        <small>Чтобы камера открывалась прямо в приложении — откройте ссылку в Chrome или Safari и разрешите доступ к камере.</small>
+      </div>`;
+      msg.querySelectorAll('input').forEach(i => { i.onchange = ev => { S.queue = Array.from(ev.target.files || []); nextFromQueue(); }; });
+      $('#scShot').hidden = true; const sb = $('#scanner .sc-bottom'); if (sb) sb.hidden = true;
     }
   }
   function nextFromQueue() {

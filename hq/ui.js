@@ -423,7 +423,7 @@ A.editDriver = d => {
 
 /* таблица рейсов */
 function tripTable(ts, opt = {}) {
-  return `<div class="tbl-wrap"><table class="tbl trips"><thead><tr><th>Взят</th>${opt.noOrder ? '' : '<th>Заявка</th>'}${opt.noDriver ? '' : '<th>Водитель</th>'}<th>Машина</th><th>Статус</th><th class="r">Объём</th><th>ТТН</th>${opt.actions ? '<th></th>' : ''}</tr></thead><tbody>${ts.map(t => {
+  return `<div class="tbl-wrap"><table class="tbl trips"><thead><tr><th>Взят</th>${opt.noOrder ? '' : '<th>Заявка</th>'}${opt.noDriver ? '' : '<th>Водитель</th>'}<th>Машина</th><th>Статус</th><th class="r">Объём</th><th>ТТН</th></tr></thead><tbody>${ts.map(t => {
     const o = O(t.orderId), d = D(t.driverId), v = V(t.vehicleId);
     return `<tr class="${t.state}">
       <td><b>${fmtTime(t.takenAt)}</b><small>${fmtDay(t.takenAt)}</small></td>
@@ -433,7 +433,7 @@ function tripTable(ts, opt = {}) {
       <td>${tripChip(t)}${t.doneAt ? `<small>${fmtTime(t.doneAt)}</small>` : ''}</td>
       <td class="r">${t.state === 'done' ? m3(t.m3) : '<span class="muted">—</span>'}</td>
       <td>${t.ttn ? `<button class="btn soft sm" data-a="openTtn" data-id="${t.id}">${ic('file')}${t.ttn.pages} стр.</button>` : t.state === 'done' ? '<span class="muted">нет</span>' : ''}</td>
-      ${opt.actions ? `<td class="r nowrap">${t.state === 'pending' ? `<button class="btn ok sm" data-a="confirmTrip" data-id="${t.id}">${ic('check')}Подтвердить</button> <button class="icon-btn sm" data-a="rejectTrip" data-id="${t.id}" title="Отклонить">${ic('x')}</button>` : ''}</td>` : ''}
+      
     </tr>`;
   }).join('')}</tbody></table></div>`;
 }

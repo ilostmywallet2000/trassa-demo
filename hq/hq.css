@@ -923,3 +923,12 @@ body.scan-open { overflow: hidden; }
 .lg-drv-h > div { display: flex; flex-direction: column; }
 .ldr { transition: border-color .3s, box-shadow .3s; }
 .ldr.hl { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+
+/* сканер: запасной вход через камеру телефона */
+.sc-fallback { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 360px; margin: 0 auto; text-align: center; }
+.sc-fallback b { font-family: var(--fd); font-weight: 600; font-size: 19px; color: #fff; }
+.sc-fallback p { color: rgba(255, 255, 255, .7); font-size: 14px; margin: 0 0 4px; }
+.sc-fallback .btn { width: 100%; cursor: pointer; }
+.sc-fallback .btn.soft { background: rgba(255, 255, 255, .1); border-color: transparent; color: #fff; }
+.sc-fallback small { color: rgba(255, 255, 255, .45); font-size: 12.5px; }
+#scanner [hidden] { display: none !important; }

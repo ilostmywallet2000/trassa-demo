@@ -92,7 +92,7 @@ function dispShell(page, id) {
   const P = { pult: Disp.pult, orders: Disp.orders, order: Disp.order, chats: Disp.chats, chat: Disp.chats, drivers: Disp.drivers, driver: Disp.driver, fleet: Disp.fleet, vehicle: Disp.vehicle, reports: Disp.reports, settings: Disp.settings };
   if (!P[page]) page = 'pult';
   const active = PARENT[page] || page;
-  const badges = { pult: db.trips.filter(t => t.state === 'pending').length, chats: db.chats.reduce((s, c) => s + unreadFor('disp', c), 0) };
+  const badges = { pult: db.drivers.filter(d => d.breakdown && d.breakdown.kind === 'sos' && !d.breakdown.ack).length || 0, chats: db.chats.reduce((s, c) => s + unreadFor('disp', c), 0) };
   const t = new Date();
   const full = page === 'chats' || page === 'chat';
   return `<div class="shell disp">

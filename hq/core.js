@@ -266,8 +266,8 @@ const Act = {
       if (v.state === 'repair') return { ok: false, why: 'Ваша машина в ремонте' };
       if (activeTrip(did)) return { ok: false, why: 'Сначала завершите текущий рейс' };
       if (orderLeft(o) === 0) return { ok: false, why: 'Рейсов не осталось — заявка потрачена' };
-      const auto = db.settings.autoConfirm;
-      const t = { id: uid('t'), orderId: oid, driverId: did, vehicleId: v.id, state: auto ? 'confirmed' : 'pending', takenAt: now(), confirmedAt: auto ? now() : null, doneAt: null, m3: o.m3 || v.volume, ttn: null, by: 'driver' };
+      // рейс сразу в работе — подтверждение диспетчера не нужно
+      const t = { id: uid('t'), orderId: oid, driverId: did, vehicleId: v.id, state: 'confirmed', takenAt: now(), confirmedAt: now(), doneAt: null, m3: o.m3 || v.volume, ttn: null, by: 'driver' };
       db.trips.push(t);
       if (db.locks[oid]) delete db.locks[oid][did];
       const left = orderLeft(o);
@@ -516,9 +516,9 @@ function seed() {
   const tr = (o, di, state, hAgo, by) => trips.push({ id: uid('t'), orderId: o.id, driverId: 'd' + di, vehicleId: 'v' + di, state, takenAt: T - hAgo * HOUR, confirmedAt: state !== 'pending' ? T - hAgo * HOUR + 4 * MIN : null, doneAt: state === 'done' ? T - (hAgo - 1.4) * HOUR : null, m3: o.m3, ttn: null, by: by || 'driver' });
   [[1, 4], [2, 4.2], [3, 3.9], [4, 3.6], [6, 3.4]].forEach(([d, h]) => tr(o100, d, 'done', h));
   tr(o101, 2, 'done', 2.6); tr(o101, 3, 'done', 2.4); tr(o101, 1, 'done', 2.2);
-  tr(o101, 4, 'confirmed', .7); tr(o101, 5, 'pending', .12);
+  tr(o101, 4, 'confirmed', .7); tr(o101, 5, 'confirmed', .12);
   tr(o102, 7, 'done', 2.5); tr(o102, 8, 'done', 2.1); tr(o102, 6, 'confirmed', .5);
-  tr(o102, 12, 'pending', .05);
+  tr(o102, 12, 'confirmed', .05);
 
   const chats = [
     { id: 'c-all', kind: 'all', title: 'Все водители' },
@@ -551,7 +551,7 @@ function seed() {
   const assignLog = vehicles.filter(v => v.driverId).map(v => ({ at: t0 - 14 * DAY, vehicleId: v.id, driverId: v.driverId, prevDriverId: null, by: 'mech' }));
   return {
     v: 1, rev: 1, seededAt: T, seq: { order: 104 },
-    settings: { autoConfirm: false, bots: false },
+    settings: { bots: false },
     drivers, vehicles, orders, trips, shifts, chats, messages, assignLog,
     breakdowns: [Object.assign({ driverId: 'd9' }, drivers[8].breakdown)],
     locks: {}, reads: { disp: Object.fromEntries(chats.map(c => [c.id, T])) }, events: [],
@@ -562,3 +562,5 @@ function seed() {
 db = loadRaw();
 // демо: данные старше 10 часов создаются заново, чтобы смены и рейсы выглядели «сегодня»
 if (!db || db.v !== 1 || now() - (db.seededAt || 0) > 10 * HOUR) { db = seed(); saveRaw(); }
+// старые данные: рейсы «ждёт подтверждения» сразу в работу
+if (db.trips.some(t => t.state === 'pending')) { db.trips.forEach(t => { if (t.state === 'pending') { t.state = 'confirmed'; t.confirmedAt = t.confirmedAt || now(); } }); saveRaw(); }

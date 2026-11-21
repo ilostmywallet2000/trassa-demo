@@ -18,19 +18,19 @@ Disp.pult = () => {
   return `
   <div class="kpis">
     ${kpi('На линии', `${line.length}<small>/${db.drivers.length}</small>`, `${broken.length ? broken.length + ' с поломкой' : 'поломок нет'}`, broken.some(d => d.breakdown && d.breakdown.kind === 'sos') ? 'bad' : '')}
-    ${kpi('Рейсов сегодня', doneToday.length, `${work.length} в работе · ${pend.length} ждут`)}
+    ${kpi('Рейсов сегодня', doneToday.length, `${work.length} сейчас в рейсе`)}
     ${kpi('Кубатура сегодня', m3(doneToday.reduce((s, t) => s + t.m3, 0)), `${db.trips.filter(t => t.state === 'done' && t.doneAt >= t0 - 6 * DAY).reduce((s, t) => s + t.m3, 0).toLocaleString('ru-RU')} м³ за 7 дней`)}
     ${kpi('Свободных рейсов', freeTrips, `в ${open.length} ${plural(open.length, 'заявке', 'заявках', 'заявках')}`, 'acc')}
   </div>
   <div class="pult">
     <section class="col">
-      <div class="col-h"><b>Ждут подтверждения</b>${pend.length ? `<em class="badge acc">${pend.length}</em>` : ''}${db.settings.autoConfirm ? '<span class="chip">авто</span>' : ''}</div>
-      ${pend.length ? pend.sort((a, b) => a.takenAt - b.takenAt).map(t => {
+      <div class="col-h"><b>Сейчас в рейсе</b>${work.length ? `<em class="badge acc">${work.length}</em>` : ''}</div>
+      ${work.length ? work.sort((a, b) => b.takenAt - a.takenAt).map(t => {
         const o = O(t.orderId), d = D(t.driverId), v = V(t.vehicleId);
         return `<div class="pcard"><div class="pc-h">${avatar(d)}<div><b>${esc(d.name)}</b><span>${plate(v, 'sm')} <small>${ago(t.takenAt)}</small></span></div></div>
           <a class="pc-o" href="#/order/${o.id}">№${o.no} · ${esc(o.cargo)} <small>осталось ${orderLeft(o)} из ${o.total}</small></a>
-          <div class="row gap"><button class="btn ok grow" data-a="confirmTrip" data-id="${t.id}">${ic('check')}Подтвердить</button><button class="btn ghost" data-a="rejectTrip" data-id="${t.id}">Отклонить</button></div></div>`;
-      }).join('') : `<div class="calm">${ic('check')}<span>Все рейсы подтверждены</span></div>`}
+          <div class="row gap"><a class="btn soft grow" href="${telHref(d.phone)}">${ic('phone')}Позвонить</a><a class="btn ghost" href="#/chat/dm-${d.id}">${ic('chat')}</a></div></div>`;
+      }).join('') : `<div class="calm">${ic('truck')}<span>Сейчас никто не в рейсе</span></div>`}
       <div class="col-h mt"><b>Лента событий</b></div>
       <div class="feed">${evs.length ? evs.map(e => `<div class="fe ${e.kind}"><i></i><span>${esc(e.text)}</span><small>${fmtTime(e.at)}</small></div>`).join('') : '<p class="muted sm">Здесь появятся действия водителей и механика</p>'}</div>
     </section>
@@ -85,7 +85,7 @@ Disp.order = id => {
         <div class="card big-count ${isSpent(o) ? 'spent' : ''}">
           <div class="bc-n"><b>${left}</b><span>${o.status === 'closed' ? 'заявка закрыта' : left ? `${plural(left, 'рейс остался', 'рейса осталось', 'рейсов осталось')} из ${o.total}` : 'все рейсы разобраны'}</span></div>
           ${tripCells(o)}
-          <div class="legend"><span><i class="ok"></i>выполнено ${done.length}</span><span><i class="info"></i>в работе ${ts.filter(t => t.state === 'confirmed').length}</span><span><i class="acc"></i>ждут ${ts.filter(t => t.state === 'pending').length}</span><span><i></i>свободно ${left}</span></div>
+          <div class="legend"><span><i class="ok"></i>выполнено ${done.length}</span><span><i class="info"></i>в работе ${ts.filter(t => t.state === 'confirmed').length}</span><span><i></i>свободно ${left}</span></div>
           ${isSpent(o) ? '<div class="stamp">ПОТРАЧЕНО</div>' : ''}
         </div>
         <div class="card"><div class="card-h"><b>${esc(o.cargo)}</b>${chip(ic('cube') + o.m3 + ' м³ / рейс')}</div>
@@ -148,7 +148,7 @@ A.assign = d => {
     const why = x.status !== 'line' ? STATUS[statusKey(x)].t.toLowerCase() : !v ? 'нет машины' : v.state === 'repair' ? 'машина в ремонте' : at ? `рейс №${O(at.orderId).no}` : '';
     return { x, v, why };
   }).sort((a, b) => !!a.why - !!b.why);
-  const m = modal(`<p class="muted">Рейс сразу будет подтверждён, водитель получит сообщение. Осталось рейсов: ${orderLeft(o)}.</p>
+  const m = modal(`<p class="muted">Водитель получит сообщение, рейс сразу в работе. Осталось рейсов: ${orderLeft(o)}.</p>
     <div class="pick">${rows.map(({ x, v, why }) => `<button class="pk ${why ? 'dis' : ''}" data-id="${x.id}" ${why ? 'disabled' : ''}>${avatar(x, 'sm')}<div><b>${esc(x.name)}</b><span>${why || 'свободен · на линии ' + dur(now() - x.since)}</span></div>${plate(v, 'sm')}</button>`).join('')}</div>`, { title: `Назначить рейс · №${o.no}`, sub: o.cargo });
   m.el.addEventListener('click', e => { const b = e.target.closest('.pk[data-id]'); if (!b || b.disabled) return; const r = Act.assignTrip(o.id, b.dataset.id); m.close(); r && r.ok ? toast('Рейс назначен', D(b.dataset.id).name, 'ok') : toast('Не получилось', r && r.why, 'bad'); });
 };
@@ -397,7 +397,6 @@ A.exportCsv = () => {
 /* ---------- настройки ---------- */
 Disp.settings = () => `
   <div class="card set">
-    <div class="sw-row"><div><b>Подтверждать рейсы автоматически</b><span>Водитель берёт рейс — и сразу едет, без нажатия «Подтвердить»</span></div><button class="switch ${db.settings.autoConfirm ? 'on' : ''}" data-a="toggleSet" data-k="autoConfirm"><i></i></button></div>
     <div class="sw-row"><div><b>Демо-движение</b><span>Водители-боты берут рейсы, пишут в чат и завершают рейсы — чтобы посмотреть пульт в работе</span></div><button class="switch ${db.settings.bots ? 'on' : ''}" data-a="toggleSet" data-k="bots"><i></i></button></div>
   </div>
   <div class="card set"><div class="card-h"><b>Как проверить вдвоём</b></div>
