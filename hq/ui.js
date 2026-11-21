@@ -464,7 +464,9 @@ function tripTable(ts, opt = {}) {
 A.openTtn = async d => {
   const t = db.trips.find(x => x.id === d.id); if (!t || !t.ttn) return;
   const o = O(t.orderId), dr = D(t.driverId);
-  const doc = { id: 'ttn', kind: 'ТТН', title: `ТТН №${o.no} ${fmtDay(t.doneAt)}`, fileId: t.ttn.fileId, mime: t.ttn.mime, pages: t.ttn.pages, thumb: t.ttn.thumb, size: t.ttn.size, at: t.doneAt, by: dr.name };
+  // в имени файла — настоящая дата и время рейса (не «сегодня»), чтобы ТТН в «Загрузках» не путались
+  const dd = new Date(t.doneAt || t.takenAt), stamp = `${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.${dd.getFullYear()} ${pad(dd.getHours())}-${pad(dd.getMinutes())}`;
+  const doc = { id: 'ttn', kind: 'ТТН', title: `ТТН №${o.no} от ${stamp}`, fileId: t.ttn.fileId, mime: t.ttn.mime, pages: t.ttn.pages, thumb: t.ttn.thumb, size: t.ttn.size, at: t.doneAt, by: dr.name };
   const f = await FS.get(doc.fileId), url = f ? URL.createObjectURL(f.blob) : null;
   const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве водителя</b><span>В рабочей версии ТТН сразу уходит на сервер</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}">`}</div>
     <div class="row gap wrap doc-acts"><button class="btn acc" id="tShare">${ic('share')}Поделиться</button>${f ? `<a class="btn soft" href="${url}" download="${esc(fileName(doc, dr))}">${ic('download')}Скачать</a><a class="btn soft" href="${url}" target="_blank">${ic('file')}Открыть</a>` : ''}</div>`, { title: doc.title, sub: `${dr.name} · ${t.ttn.pages} стр. · ${m3(t.m3)}`, wide: true });
