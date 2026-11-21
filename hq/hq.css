@@ -973,3 +973,26 @@ body.scan-open { overflow: hidden; }
   .tbl.trips td:nth-child(6):has(.muted) { display: none; }
 }
 @media (max-width: 640px) { .tbl.trips td:nth-child(3) { justify-self: end; } }
+
+/* ---------- сканер: живая рамка, как в TapScanner ---------- */
+.sc-live { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.sc-live.on { opacity: 1; }
+.sc-live polygon { fill: rgba(255, 194, 26, .14); stroke: #ffc21a; stroke-width: 3; stroke-linejoin: round; transition: fill .2s; }
+.sc-live.lock polygon { fill: rgba(255, 194, 26, .28); stroke-width: 4; }
+.sc-hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100% - 120px); padding: 8px 14px; border-radius: 99px; background: rgba(0, 0, 0, .62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: #fff; font-size: 13.5px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-hint.ok { background: rgba(255, 194, 26, .92); color: #1d1600; }
+.sc-auto { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 99px; background: rgba(0, 0, 0, .55); color: rgba(255, 255, 255, .8); font-weight: 700; font-size: 13px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.sc-auto .ic { width: 16px; height: 16px; }
+.sc-auto.on { background: #ffc21a; color: #1d1600; }
+.sc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.sc-flash.go { animation: scFlash .25s ease-out; }
+@keyframes scFlash { 0% { opacity: .85; } 100% { opacity: 0; } }
+.sc-shot { position: relative; background: conic-gradient(#ffc21a calc(var(--p, 0) * 360deg), transparent 0); border-color: rgba(255, 255, 255, .9); }
+.sc-shot i { position: relative; z-index: 1; }
+.sc-frame[hidden] { display: none; }
+.sc-loupe { position: absolute; width: 150px; height: 150px; border-radius: 50%; overflow: hidden; border: 3px solid #ffc21a; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); pointer-events: none; z-index: 5; }
+.sc-loupe canvas { display: block; width: 150px; height: 150px; }
+.sc-loupe i { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); }
+.sc-loupe i::before, .sc-loupe i::after { content: ''; position: absolute; background: #ffc21a; }
+.sc-loupe i::before { left: 12px; top: 0; width: 2px; height: 26px; }
+.sc-loupe i::after { top: 12px; left: 0; height: 2px; width: 26px; }

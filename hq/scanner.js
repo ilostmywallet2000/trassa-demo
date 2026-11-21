@@ -22,21 +22,25 @@ const Scanner = (() => {
   function open(opts) {
     Object.assign(S, { opts: opts || {}, pages: [], queue: [], text: '', fields: [], filter: 'doc' });
     el().hidden = false; document.body.classList.add('scan-open');
+    Edge.load();   // готовим поиск краёв сразу, пока включается камера
     camera();
   }
-  function close() { stopCam(); el().hidden = true; el().innerHTML = ''; document.body.classList.remove('scan-open'); S.onProgress = null; window.onresize = null; }
-  function stopCam() { if (S.stream) { S.stream.getTracks().forEach(t => t.stop()); S.stream = null; } }
+  function close() { stopLive(); stopCam(); el().hidden = true; el().innerHTML = ''; document.body.classList.remove('scan-open'); S.onProgress = null; window.onresize = null; }
+  function stopLive() { if (S.live) { clearTimeout(S.live.t); S.live = null; } S.liveQuad = null; }
+  try { S.auto = localStorage.getItem('hq-scan-auto') !== '0'; } catch (e) { S.auto = true; }
+  function stopCam() { stopLive(); if (S.stream) { S.stream.getTracks().forEach(t => t.stop()); S.stream = null; } }
   const top = (sub) => `<div class="sc-top"><button class="sc-ic" data-sc="close" aria-label="Закрыть">${ic('x')}</button><div class="sc-title"><b>${esc(S.opts.title || 'Сканер')}</b><span>${esc(sub)}</span></div><span class="sc-count">${S.pages.length ? S.pages.length + ' стр.' : ''}</span></div>`;
+  const autoBtn = () => `<button class="sc-auto ${S.auto ? 'on' : ''}" data-sc="auto" aria-pressed="${S.auto}">${ic('sparkle')}Авто</button>`;
   const tray = () => S.pages.length ? `<div class="sc-tray">${S.pages.map((p, i) => `<div class="sc-thumb"><img src="${p.thumb}" alt=""><b>${i + 1}</b><button data-sc="delpage" data-i="${i}" aria-label="Удалить страницу">${ic('x')}</button></div>`).join('')}</div>` : '';
 
   /* шаг 1: камера */
   function camera() {
     el().innerHTML = top(S.pages.length ? `Страница ${S.pages.length + 1}: наведите камеру` : 'Наведите камеру на документ') + `
-      <div class="sc-stage cam"><video id="scVideo" playsinline muted autoplay></video><div class="sc-frame"><i></i><i></i><i></i><i></i></div><div class="sc-msg" id="scMsg">Включаем камеру…</div></div>
+      <div class="sc-stage cam"><video id="scVideo" playsinline muted autoplay></video><div class="sc-frame" id="scFrame"><i></i><i></i><i></i><i></i></div><svg class="sc-live" id="scLive"><polygon/></svg><div class="sc-hint" id="scHint" hidden></div>${autoBtn()}<div class="sc-flash" id="scFlash"></div><div class="sc-msg" id="scMsg">Включаем камеру…</div></div>
       ${tray()}
       <div class="sc-bottom">
         <label class="sc-side">${ic('upload')}<span>Из галереи</span><input type="file" id="scFile" accept="image/*" multiple hidden></label>
-        <button class="sc-shot" id="scShot" aria-label="Снять" disabled><i></i></button>
+        <button class="sc-shot" id="scShot" aria-label="Снять" disabled style="--p:0"><i></i></button>
         ${S.pages.length ? `<button class="sc-side done" data-sc="finish">${ic('check')}<span>Готово · ${S.pages.length}</span></button>` : '<span class="sc-side tip">Ровно и при<br>хорошем свете</span>'}
       </div>`;
     $('#scFile').onchange = e => { S.queue = Array.from(e.target.files || []); nextFromQueue(); };
@@ -54,7 +58,9 @@ const Scanner = (() => {
       if (el().hidden || !v.isConnected) { stopCam(); return; }
       v.srcObject = S.stream; await v.play().catch(() => {});
       msg.hidden = true; $('#scShot').disabled = false;
-      $('#scShot').onclick = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); stopCam(); crop(c); };
+      $('#scShot').onclick = () => capture(v);
+      hint(Edge.ready() ? 'Ищем лист…' : 'Готовим автоопределение краёв…');
+      Edge.load().then(ok => { if (ok && S.stream && v.isConnected) startLive(v); else hint(''); });
     } catch (e) {
       if (!msg) return;
       const n = (e && e.name) || '';
@@ -75,6 +81,57 @@ const Scanner = (() => {
       $('#scShot').hidden = true; const sb = $('#scanner .sc-bottom'); if (sb) sb.hidden = true;
     }
   }
+  function hint(t, kind) { const h = $('#scHint'); if (!h) return; h.hidden = !t; h.textContent = t || ''; h.className = 'sc-hint ' + (kind || ''); }
+  /* живая рамка: ищем лист в каждом кадре, рисуем контур, при неподвижности — автоснимок */
+  function startLive(v) {
+    stopLive();
+    let prev = null, sm = null, stable = 0, miss = 0, stableSince = 0, size = 360;
+    const HOLD = 900;   // столько мс лист должен быть неподвижен для автоснимка
+    const run = {};
+    S.live = run;
+    // цикл сам подстраивается под скорость телефона: следующий кадр — после обработки текущего
+    const loop = () => { if (S.live !== run) return; const t = performance.now(); tick(); const dt = performance.now() - t;
+      if (dt > 180 && size > 260) size -= 40; else if (dt < 60 && size < 360) size += 20;
+      run.t = setTimeout(loop, Math.max(110, dt * 1.6)); };
+    const tick = () => {
+      const svg = $('#scLive'), stage = $('#scanner .sc-stage.cam');
+      if (!svg || !stage || !v.videoWidth) return;
+      const vw = v.videoWidth, vh = v.videoHeight, q = Edge.detectIn(v, vw, vh, size);
+      const cw = stage.clientWidth, ch = stage.clientHeight, poly = svg.querySelector('polygon');
+      svg.setAttribute('viewBox', `0 0 ${cw} ${ch}`);
+      const shot = $('#scShot');
+      if (!q) {
+        if (++miss > 3) { sm = null; prev = null; stable = 0; S.liveQuad = null; svg.classList.remove('on', 'lock'); $('#scFrame').hidden = false; hint('Поместите лист целиком в кадр'); if (shot) shot.style.setProperty('--p', 0); }
+        return;
+      }
+      miss = 0;
+      const diag = Math.hypot(vw, vh);
+      const move = prev ? Math.max(...q.map((p, i) => Math.hypot(p[0] - prev[i][0], p[1] - prev[i][1]))) / diag : 1;
+      prev = q;
+      sm = sm ? sm.map((p, i) => [p[0] * .4 + q[i][0] * .6, p[1] * .4 + q[i][1] * .6]) : q;
+      S.liveQuad = sm; S.liveAt = Date.now();
+      const k = Math.max(cw / vw, ch / vh), dx = (cw - vw * k) / 2, dy = (ch - vh * k) / 2;
+      poly.setAttribute('points', sm.map(p => `${(p[0] * k + dx).toFixed(1)},${(p[1] * k + dy).toFixed(1)}`).join(' '));
+      svg.classList.add('on'); $('#scFrame').hidden = true;
+      if (move < .012) { stable++; if (!stableSince) stableSince = Date.now(); } else { stable = 0; stableSince = 0; }
+      const held = stableSince ? Date.now() - stableSince : 0;
+      svg.classList.toggle('lock', stable >= 2);
+      if (S.auto) {
+        if (shot) shot.style.setProperty('--p', Math.min(1, held / HOLD));
+        hint(stable >= 1 ? 'Держите ровно — снимаем…' : 'Лист найден', 'ok');
+        if (held >= HOLD && stable >= 3) capture(v);
+      } else hint('Лист найден — нажмите кнопку', 'ok');
+    };
+    loop();
+  }
+  function capture(v) {
+    if (!v.videoWidth) return;
+    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+    const q = S.liveQuad && Date.now() - (S.liveAt || 0) < 2000 ? S.liveQuad.map(p => p.slice()) : null;
+    const f = $('#scFlash'); if (f) { f.classList.add('go'); }
+    if (navigator.vibrate) navigator.vibrate(30);
+    stopCam(); setTimeout(() => crop(c, q), 120);
+  }
   function nextFromQueue() {
     const f = S.queue.shift(); if (!f) return;
     const url = URL.createObjectURL(f), im = new Image();
@@ -89,12 +146,15 @@ const Scanner = (() => {
 
   /* шаг 2: углы */
   const defCorners = c => { const w = c.width, h = c.height, m = .05; return [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; };
-  function crop(canvas) {
-    S.src = canvas; S.corners = detect(canvas) || defCorners(canvas);
+  function crop(canvas, preset) {
     const W = canvas.width, H = canvas.height;
+    S.src = canvas; S.touched = false;
+    const fine = Edge.ready() ? Edge.detectIn(canvas, W, H, 900) : null;
+    S.corners = fine || preset || detect(canvas) || defCorners(canvas);
+    if (!Edge.ready()) Edge.load().then(ok => { if (!ok || S.src !== canvas || S.touched) return; const q = Edge.detectIn(canvas, W, H, 900); if (q && $('#scPoly')) { S.corners = q; draw(); } });
     el().innerHTML = top('Подвиньте углы к краям листа') + `
       <div class="sc-stage crop"><div class="sc-fit" id="scFit"><canvas id="scCanvas"></canvas>
-        <svg id="scSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polygon id="scPoly"/>${[0, 1, 2, 3].map(i => `<circle data-k="${i}" r="${Math.max(W, H) * .03}"/>`).join('')}</svg></div></div>
+        <svg id="scSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polygon id="scPoly"/>${[0, 1, 2, 3].map(i => `<circle data-k="${i}" r="${Math.max(W, H) * .03}"/>`).join('')}</svg><div class="sc-loupe" id="scLoupe" hidden><canvas width="150" height="150"></canvas><i></i></div></div></div>
       <div class="sc-bottom acts">
         <button class="sc-btn" data-sc="retake">${ic('camera')}Переснять</button>
         <button class="sc-btn" data-sc="rotate">${ic('refill')}Повернуть</button>
@@ -111,10 +171,19 @@ const Scanner = (() => {
       const c = e.target.closest('circle');
       if (c) drag = +c.dataset.k;
       else { const p = pt(e); let b = 0, bd = 1e18; S.corners.forEach((q, i) => { const d = (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2; if (d < bd) { bd = d; b = i; } }); drag = b; S.corners[b] = p; draw(); }
-      svg.setPointerCapture(e.pointerId); e.preventDefault();
+      try { svg.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); S.touched = true; loupe(S.corners[drag]);
     };
-    svg.onpointermove = e => { if (drag === null) return; S.corners[drag] = pt(e); draw(); };
-    svg.onpointerup = svg.onpointercancel = () => { drag = null; };
+    const lp = $('#scLoupe'), lc = lp.querySelector('canvas'), lg = lc.getContext('2d');
+    const loupe = p => {   // лупа: увеличенный кусок вокруг угла, над пальцем
+      const box = $('#scFit'), k = box.clientWidth / W, z = 3, r = 150 / (k * z);
+      lg.fillStyle = '#000'; lg.fillRect(0, 0, 150, 150);
+      lg.drawImage(S.src, p[0] - r / 2, p[1] - r / 2, r, r, 0, 0, 150, 150);
+      let x = p[0] * k - 75, y = p[1] * k - 190; if (y < -40) y = p[1] * k + 40;
+      x = Math.max(0, Math.min(box.clientWidth - 150, x)); y = Math.max(-60, Math.min(box.clientHeight - 90, y));
+      lp.style.left = x + 'px'; lp.style.top = y + 'px'; lp.hidden = false;
+    };
+    svg.onpointermove = e => { if (drag === null) return; S.corners[drag] = pt(e); S.touched = true; draw(); loupe(S.corners[drag]); };
+    svg.onpointerup = svg.onpointercancel = () => { drag = null; lp.hidden = true; };
   }
   function draw() { $('#scPoly').setAttribute('points', S.corners.map(p => p.join(',')).join(' ')); $$('#scSvg circle').forEach((c, i) => { c.setAttribute('cx', S.corners[i][0]); c.setAttribute('cy', S.corners[i][1]); }); }
   function rotate(c) { const r = document.createElement('canvas'); r.width = c.height; r.height = c.width; const g = r.getContext('2d'); g.translate(r.width, 0); g.rotate(Math.PI / 2); g.drawImage(c, 0, 0); return r; }
@@ -255,6 +324,7 @@ const Scanner = (() => {
     const a = b.dataset.sc;
     if (a === 'close') { if (S.pages.length && !b.dataset.sure) { b.dataset.sure = 1; toast('Нажмите × ещё раз', 'Отсканированные страницы не сохранятся'); return; } close(); }
     if (a === 'retake') camera();
+    if (a === 'auto') { S.auto = !S.auto; try { localStorage.setItem('hq-scan-auto', S.auto ? '1' : '0'); } catch (e) {} b.classList.toggle('on', S.auto); b.setAttribute('aria-pressed', S.auto); const sh = $('#scShot'); if (sh) sh.style.setProperty('--p', 0); toast(S.auto ? 'Автоснимок включён' : 'Автоснимок выключен', S.auto ? 'Держите телефон ровно — снимок сделается сам' : 'Снимайте кнопкой'); }
     if (a === 'rotate') crop(rotate(S.src));
     if (a === 'full') { S.corners = [[0, 0], [S.src.width, 0], [S.src.width, S.src.height], [0, S.src.height]]; draw(); }
     if (a === 'warp') { b.disabled = true; b.textContent = 'Выпрямляем…'; setTimeout(() => { S.warped = warp(S.src, S.corners); page(); }, 30); }
