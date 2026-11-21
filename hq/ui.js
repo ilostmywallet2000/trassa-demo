@@ -36,6 +36,29 @@ async function copyText(t, what) {
   if (ok && navigator.vibrate) navigator.vibrate(30);
 }
 
+/* ---------- приложение Android: файлы через меню телефона ---------- */
+const IN_APP = !!window.TrassaApp;
+function blobToB64(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); }); }
+async function saveBlob(blob, name) {
+  if (IN_APP) { const ok = window.TrassaApp.save(await blobToB64(blob), name, blob.type || 'application/octet-stream'); toast(ok ? 'Файл сохранён' : 'Не удалось сохранить', ok ? 'Папка «Загрузки» → «Трасса HQ»' : name, ok ? 'ok' : 'bad'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.style.display = 'none'; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.parentNode && a.parentNode.removeChild(a); }, 2000);
+}
+function pdfView(url, thumb, pages) {
+  if (!IN_APP) return `<iframe class="doc-frame" src="${url}" title="PDF"></iframe>`;
+  return `<div class="pdf-prev">${thumb ? `<img src="${thumb}" alt="">` : `<span class="doc-ph">${ic('file')}<b>PDF</b></span>`}<span>${ic('file')}PDF · ${pages || 1} стр. — нажмите «Открыть», чтобы посмотреть все страницы</span></div>`;
+}
+/* в приложении ссылки «Скачать» и «Открыть» на файлы идут через телефон */
+document.addEventListener('click', async e => {
+  if (!IN_APP) return;
+  const a = e.target.closest('a[href^="blob:"]'); if (!a) return;
+  e.preventDefault(); e.stopPropagation();
+  const blob = await fetch(a.href).then(r => r.blob());
+  const name = a.getAttribute('download') || ('Документ' + (blob.type === 'application/pdf' ? '.pdf' : '.jpg'));
+  if (a.hasAttribute('download')) saveBlob(blob, name);
+  else window.TrassaApp.open(await blobToB64(blob), name, blob.type || 'application/pdf');
+}, true);
+
 /* ---------- окна ---------- */
 function modal(html, opts = {}) {
   const root = $('#modal-root'), w = document.createElement('div');
@@ -322,7 +345,7 @@ async function openDoc(owner, docId) {
   const f = await FS.get(doc.fileId);
   const url = f ? URL.createObjectURL(f.blob) : null;
   const w = who(), canEdit = w.role !== 'driver' || (owner.type === 'driver' && owner.id === w.id);
-  const view = !f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве, где его добавили</b><span>В рабочей версии файлы хранятся на сервере и открываются везде</span></div>` : doc.mime === 'application/pdf' ? `<iframe class="doc-frame" src="${url}" title="PDF"></iframe>` : `<img class="doc-full" src="${url}" alt="">`;
+  const view = !f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве, где его добавили</b><span>В рабочей версии файлы хранятся на сервере и открываются везде</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}" alt="">`;
   const m = modal(`
     <div class="doc-view">${view}</div>
     <div class="doc-info">
@@ -348,6 +371,7 @@ function fileName(doc, o) { const who = o ? (o.name || o.plate || '') : ''; retu
 async function shareDoc(doc, o) {
   const f = await FS.get(doc.fileId);
   const caption = `${doc.title || doc.kind}${o ? ' — ' + (o.name || o.plate + ' ' + o.region) : ''}${doc.number ? ' · № ' + doc.number : ''}`;
+  if (f && IN_APP) { window.TrassaApp.share(await blobToB64(f.blob), fileName(doc, o), f.mime, caption); return; }
   if (f) {
     const file = new File([f.blob], fileName(doc, o), { type: f.mime });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -442,7 +466,7 @@ A.openTtn = async d => {
   const o = O(t.orderId), dr = D(t.driverId);
   const doc = { id: 'ttn', kind: 'ТТН', title: `ТТН №${o.no} ${fmtDay(t.doneAt)}`, fileId: t.ttn.fileId, mime: t.ttn.mime, pages: t.ttn.pages, thumb: t.ttn.thumb, size: t.ttn.size, at: t.doneAt, by: dr.name };
   const f = await FS.get(doc.fileId), url = f ? URL.createObjectURL(f.blob) : null;
-  const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве водителя</b><span>В рабочей версии ТТН сразу уходит на сервер</span></div>` : doc.mime === 'application/pdf' ? `<iframe class="doc-frame" src="${url}"></iframe>` : `<img class="doc-full" src="${url}">`}</div>
+  const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве водителя</b><span>В рабочей версии ТТН сразу уходит на сервер</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}">`}</div>
     <div class="row gap wrap doc-acts"><button class="btn acc" id="tShare">${ic('share')}Поделиться</button>${f ? `<a class="btn soft" href="${url}" download="${esc(fileName(doc, dr))}">${ic('download')}Скачать</a><a class="btn soft" href="${url}" target="_blank">${ic('file')}Открыть</a>` : ''}</div>`, { title: doc.title, sub: `${dr.name} · ${t.ttn.pages} стр. · ${m3(t.m3)}`, wide: true });
   m.$('#tShare').onclick = () => shareDoc(doc, dr);
 };

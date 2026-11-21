@@ -37,7 +37,7 @@ function loginView() {
     </section>
     <section class="lg-panel" data-keep="login">
       <h2>Войти как</h2>
-      <p class="muted">Каждая вкладка браузера — отдельный человек. Откройте вторую вкладку и войдите водителем, чтобы увидеть всё вживую.</p>
+      ${IN_APP ? '<p class="muted">Выберите, кто вы. Демо-версия: данные пока хранятся только на этом телефоне.</p>' : '<p class="muted">Каждая вкладка браузера — отдельный человек. Откройте вторую вкладку и войдите водителем, чтобы увидеть всё вживую.</p>'}
       <div class="roles">
         <button class="role disp" data-a="login" data-r="disp"><span class="r-ic">${ic('pult')}</span><div><b>Диспетчер</b><span>${esc(db.people.disp.name)} · пульт, заявки, отчёты</span></div>${ic('right')}</button>
         <button class="role mech" data-a="login" data-r="mech"><span class="r-ic">${ic('wrench')}</span><div><b>Механик</b><span>${esc(db.people.mech.name)} · машины и документы</span></div>${ic('right')}</button>
@@ -45,7 +45,7 @@ function loginView() {
       </div>
       <div class="lg-drv-h" id="lgDrv"><div><b>Войти водителем</b><span class="muted sm">Нажмите на своё имя</span></div><label class="search sm">${ic('search')}<input id="q-login" data-q="login" placeholder="Имя или номер" value="${esc(UI.q.login || '')}"></label></div>
       <div class="lg-drv">${ds.map(d => `<button class="ldr" data-a="login" data-r="driver" data-id="${d.id}">${avatar(d)}<div><b>${esc(d.name)}</b>${statusChip(d)}</div>${plate(vehOf(d.id), 'sm')}</button>`).join('')}</div>
-      <button class="btn ghost full" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>
+      ${IN_APP || matchMedia('(display-mode: standalone)').matches ? '' : `<a class="btn acc full" href="install.html">${ic('download')}Установить на телефон</a><button class="btn ghost full" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>`}
     </section>
   </div>`;
 }
@@ -238,6 +238,16 @@ setInterval(() => {
   }
   if (!typing && w.role) render();
 }, 4000);
+
+/* кнопка «Назад» на Android: закрыть сканер или окно, потом шаг назад по экранам */
+window.appBack = () => {
+  if (!$('#scanner').hidden) { Scanner.close(); return true; }
+  const ms = $$('#modal-root .modal-wrap');
+  if (ms.length) { const x = ms[ms.length - 1].querySelector('[data-close]'); if (x) x.click(); return true; }
+  const w = who(), r = route();
+  if (w.role && r.page && r.page !== HOME[w.role]) { history.back(); return true; }
+  return false;
+};
 
 applyTheme();
 if (!location.hash) location.hash = who().role ? '#/' + HOME[who().role] : '#/login';

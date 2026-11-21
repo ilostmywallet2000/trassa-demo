@@ -932,3 +932,9 @@ body.scan-open { overflow: hidden; }
 .sc-fallback .btn.soft { background: rgba(255, 255, 255, .1); border-color: transparent; color: #fff; }
 .sc-fallback small { color: rgba(255, 255, 255, .45); font-size: 12.5px; }
 #scanner [hidden] { display: none !important; }
+
+/* PDF в приложении Android: превью первой страницы */
+.pdf-prev { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px; color: #ccc; font-size: 13.5px; text-align: center; }
+.pdf-prev img { max-height: 46vh; max-width: 100%; border-radius: 8px; background: #fff; }
+.pdf-prev > span { display: flex; align-items: center; gap: 8px; }
+.lg-panel > .btn.full + .btn.full { margin-top: 8px; }

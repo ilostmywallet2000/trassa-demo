@@ -391,7 +391,7 @@ A.exportCsv = () => {
   rows.push([]); rows.push(['Заказчик', 'Рейсов', 'Кубатура м3', 'Сумма руб']);
   Object.entries(r.clients).forEach(([k, c]) => rows.push([k, c.n, c.v, c.r]));
   const csv = '﻿' + rows.map(r => r.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `Трасса-отчёт-${isoDay(r.from)}—${isoDay(now())}.csv`; a.click();
+  saveBlob(new Blob([csv], { type: 'text/csv' }), `Трасса-отчёт-${isoDay(r.from)}—${isoDay(now())}.csv`);
 };
 
 /* ---------- настройки ---------- */
@@ -399,10 +399,10 @@ Disp.settings = () => `
   <div class="card set">
     <div class="sw-row"><div><b>Демо-движение</b><span>Водители-боты берут рейсы, пишут в чат и завершают рейсы — чтобы посмотреть пульт в работе</span></div><button class="switch ${db.settings.bots ? 'on' : ''}" data-a="toggleSet" data-k="bots"><i></i></button></div>
   </div>
-  <div class="card set"><div class="card-h"><b>Как проверить вдвоём</b></div>
+  ${IN_APP ? '' : `<div class="card set"><div class="card-h"><b>Как проверить вдвоём</b></div>
     <p class="muted">Откройте эту же страницу во второй вкладке и войдите водителем или механиком — всё, что делает один, сразу видно у другого. На разных телефонах это заработает, когда подключим сервер.</p>
     <button class="btn soft" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>
-  </div>
+  </div>`}
   <div class="card set danger-zone"><div class="card-h"><b>Демо-данные</b></div><p class="muted">Вернуть всё как было: водители, машины, заявки, чаты. Ваши документы и сканы удалятся.</p><button class="btn ghost danger" data-a="resetDemo">${ic('refill')}Сбросить демо</button></div>`;
 A.toggleSet = d => Act.setting(d.k, !db.settings[d.k]);
 A.resetDemo = async () => { if (!await confirmBox('Сбросить демо?', 'Все изменения и загруженные документы будут удалены.', 'Сбросить', 'danger')) return; await FS.clear(); db = seed(); saveRaw(); emit(); toast('Демо сброшено', '', 'ok'); go('#/pult'); };
