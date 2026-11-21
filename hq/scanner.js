@@ -46,20 +46,30 @@ const Scanner = (() => {
     const msg = $('#scMsg'), v = $('#scVideo');
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('камера недоступна в этом окне');
-      S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } });
+      try { S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } }); }
+      catch (e1) {   // веб-камеры ноутбуков иногда не принимают высокое разрешение — пробуем самый простой запрос
+        if (e1 && (e1.name === 'NotAllowedError' || e1.name === 'SecurityError')) throw e1;
+        S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+      }
       if (el().hidden || !v.isConnected) { stopCam(); return; }
       v.srcObject = S.stream; await v.play().catch(() => {});
       msg.hidden = true; $('#scShot').disabled = false;
       $('#scShot').onclick = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); stopCam(); crop(c); };
     } catch (e) {
       if (!msg) return;
-      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      const n = (e && e.name) || '';
+      const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+      const why = n === 'NotAllowedError' || n === 'SecurityError'
+        ? ['Доступ к камере запрещён', mobile ? 'Браузер запомнил «Запретить». Откройте настройки сайта (значок слева от адреса) → Камера → Разрешить, и обновите страницу. Если ссылка открыта внутри Telegram или WhatsApp — откройте её в Chrome или Safari.' : 'Нажмите на значок слева от адреса сайта (замок или камера) → Камера → Разрешить, и обновите страницу. Если не помогло: на Mac — Системные настройки → Конфиденциальность → Камера → включите браузер; на Windows — Параметры → Конфиденциальность → Камера → «Разрешить приложениям доступ».']
+        : n === 'NotFoundError' || n === 'OverconstrainedError' ? ['Камера не найдена', 'На этом устройстве браузер не видит камеру. Удобнее снимать с телефона — или загрузите готовое фото.']
+        : n === 'NotReadableError' || n === 'AbortError' ? ['Камера занята другой программой', 'Закройте Zoom, Skype, Telegram-звонок или другую вкладку с камерой и нажмите «Сканировать» ещё раз.']
+        : ['Камера здесь недоступна', 'Так бывает, если ссылку открыли внутри Telegram или WhatsApp. Откройте её в Chrome, Safari или Яндекс Браузере.'];
       msg.innerHTML = `<div class="sc-fallback">
-        <b>Снимите документ камерой телефона</b>
-        <p>${denied ? 'Браузер не дал доступ к камере.' : 'Встроенная камера здесь недоступна.'} Так бывает, если ссылку открыли внутри Telegram или WhatsApp, или доступ к камере запрещён. Нажмите кнопку — откроется обычная камера телефона, а обрезка и PDF сработают как обычно.</p>
-        <label class="btn acc xl">${ic('camera')}Сфотографировать<input type="file" accept="image/*" capture="environment" hidden></label>
-        <label class="btn soft">${ic('upload')}Выбрать из галереи<input type="file" accept="image/*" multiple hidden></label>
-        <small>Чтобы камера открывалась прямо в приложении — откройте ссылку в Chrome или Safari и разрешите доступ к камере.</small>
+        <b>${why[0]}</b>
+        <p>${why[1]}</p>
+        <label class="btn acc xl">${ic('camera')}${mobile ? 'Сфотографировать' : 'Выбрать фото документа'}<input type="file" accept="image/*" ${mobile ? 'capture="environment"' : 'multiple'} hidden></label>
+        ${mobile ? `<label class="btn soft">${ic('upload')}Выбрать из галереи<input type="file" accept="image/*" multiple hidden></label>` : ''}
+        <small>${mobile ? 'Кнопка выше откроет обычную камеру телефона — обрезка и PDF сработают как обычно.' : 'Фото можно сделать телефоном и перекинуть на компьютер — обрезка, фильтр и PDF сработают как обычно.'}${n ? ` · код: ${esc(n)}` : ''}</small>
       </div>`;
       msg.querySelectorAll('input').forEach(i => { i.onchange = ev => { S.queue = Array.from(ev.target.files || []); nextFromQueue(); }; });
       $('#scShot').hidden = true; const sb = $('#scanner .sc-bottom'); if (sb) sb.hidden = true;
