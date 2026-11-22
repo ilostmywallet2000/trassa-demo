@@ -905,6 +905,7 @@ body.scan-open { overflow: hidden; }
   .four { grid-template-columns: 1fr 1fr; }
   .modal-wrap { place-items: end center; padding: 0; }
   .modal, .modal-wrap.wide .modal, .modal-wrap.full .modal { width: 100%; border-radius: 24px 24px 0 0; max-height: 94dvh; transform: translateY(40px); }
+  .modal-wrap.in .modal, .modal-wrap.in.wide .modal, .modal-wrap.in.full .modal { transform: none; }   /* иначе большие окна оставались сдвинуты вниз на 40px */
   .modal-b { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
   .lg-feats { grid-template-columns: 1fr; }
   .lg-panel { padding: 28px 18px; max-height: none; }
@@ -1005,3 +1006,11 @@ body.scan-open { overflow: hidden; }
   input, textarea, select { font-size: 16px !important; }
 }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* кнопки окна прилипают к низу — их не нужно искать, долистывая */
+.modal-b.has-foot { padding-bottom: 0; }
+.m-foot { position: sticky; bottom: 0; z-index: 3; background: var(--card); margin: 16px -22px 0; padding: 12px 22px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .m-foot { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .m-foot > .btn { flex: 1 1 auto; min-height: 48px; }
+}

@@ -64,6 +64,9 @@ function modal(html, opts = {}) {
   const root = $('#modal-root'), w = document.createElement('div');
   w.className = 'modal-wrap' + (opts.wide ? ' wide' : '') + (opts.full ? ' full' : '');
   w.innerHTML = `<div class="modal-bg" data-close></div><div class="modal" role="dialog">${opts.title ? `<div class="modal-h"><div><b>${esc(opts.title)}</b>${opts.sub ? `<span>${esc(opts.sub)}</span>` : ''}</div><button class="icon-btn" data-close aria-label="Закрыть">${ic('x')}</button></div>` : ''}<div class="modal-b">${html}</div></div>`;
+  // последний ряд кнопок окна — всегда виден внизу (прилипает), даже если окно длиннее экрана
+  const mb = w.querySelector('.modal-b'), last = mb && mb.lastElementChild;
+  if (last && last.matches('.row, .doc-acts, .acts') && last.querySelector('button, .btn')) { last.classList.add('m-foot'); mb.classList.add('has-foot'); }
   root.appendChild(w); setTimeout(() => w.classList.add('in'), 20);
   const close = () => { w.classList.remove('in'); setTimeout(() => w.remove(), 220); opts.onClose && opts.onClose(); };
   w.addEventListener('click', e => { if (e.target.closest('[data-close]')) close(); });
