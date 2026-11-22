@@ -153,7 +153,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
-const APP_VER = '0.4.5';
+const APP_VER = '0.4.6';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -246,6 +246,8 @@ const isSpent = o => o.status !== 'closed' && orderLeft(o) === 0;
 const tripM3 = t => t.state === 'done' ? (t.m3 || 0) : 0;
 /* ставки: за м³ или за тонну; водитель видит только свою. Старые заявки — «за рейс» (price) → пересчёт на м³ */
 const UNIT = { m3: 'м³', t: 'т' };
+/* время работы по заявке: «с 08:00 до 18:00» (до — необязательно) */
+const timeSpan = o => o.time ? 'с ' + o.time + (o.timeTo ? ' до ' + o.timeTo : '') : o.timeTo ? 'до ' + o.timeTo : '';
 function orderRates(o) {
   const unit = o.unit === 't' ? 't' : 'm3';
   let rd = o.rateDrv; if (rd == null && o.price) rd = Math.round(o.price / (o.m3 || 1));

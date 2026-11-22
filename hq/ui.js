@@ -124,7 +124,7 @@ function orderCard(o, ctx = {}) {
   const href = ctx.href || `#/order/${o.id}`;
   return `<a class="ocard ${spent ? 'spent' : ''} ${closed ? 'closed' : ''} ${ctx.compact ? 'compact' : ''}" href="${href}">
     <div class="oc-h"><span class="oc-no">№${o.no}</span><b>${esc(o.cargo)}</b>${fresh ? `<span class="chip acc pulse">${ic('refill')}+${lastTop.n} пополнение</span>` : ''}</div>
-    <div class="oc-sub">${esc(o.client)} · ${fmtDay(new Date(o.date + 'T' + (o.time || '08:00')).getTime())}${o.time ? ' с ' + esc(o.time) : ''}</div>
+    <div class="oc-sub">${esc(o.client)} · ${fmtDay(new Date(o.date + 'T' + (o.time || '08:00')).getTime())}${timeSpan(o) ? ' ' + esc(timeSpan(o)) : ''}</div>
     <div class="oc-route"><div><i class="dot a"></i><span>${esc(o.from.addr)}</span></div><div><i class="dot b"></i><span>${esc(o.to.addr)}</span></div></div>
     <div class="oc-count">
       <div class="oc-left"><b>${left}</b><span>${closed ? 'закрыта' : 'осталось<br>из ' + o.total}</span></div>

@@ -91,7 +91,7 @@ Disp.order = id => {
         <div class="card"><div class="card-h"><b>${esc(o.cargo)}</b>${chip(ic('cube') + o.m3 + ' м³ / рейс')}</div>
           <div class="kv-grid">
             <div class="kv"><span>Заказчик</span><b>${esc(o.client)}</b></div>
-            <div class="kv"><span>Дата и время</span><b>${new Date(o.date).toLocaleDateString('ru-RU')} с ${esc(o.time || '—')}</b></div>
+            <div class="kv"><span>Дата и время</span><b>${new Date(o.date).toLocaleDateString('ru-RU')} ${esc(timeSpan(o) || '')}</b></div>
             <div class="kv"><span>Кубатура выполнено</span><b>${m3(done.reduce((s, t) => s + t.m3, 0))} из ${m3(o.m3 * o.total)}</b></div>
             ${(() => { const R = orderRates(o); if (!R.rd && !R.rc) return ''; const pay = done.reduce((s, t) => s + tripPay(t), 0), bill = done.reduce((s, t) => s + tripBill(t), 0), q = done.reduce((s, t) => s + tripQty(t, o), 0);
               return `<div class="kv"><span>Ставка водителя</span><b>${R.rd ? perUnit(R.rd, R.u) : '—'}</b>${done.length && R.rd ? `<small>водителям ${rub(pay)}</small>` : ''}</div>
@@ -133,7 +133,7 @@ A.orderMenu = d => {
   });
 };
 function orderText(o) {
-  return `Заявка №${o.no} — ${o.cargo}, ${nTrips(orderLeft(o))} из ${o.total}, ${o.m3} м³/рейс\n${new Date(o.date).toLocaleDateString('ru-RU')} с ${o.time}\nПогрузка: ${o.from.addr}\n${o.from.lat}, ${o.from.lng}\n${o.contactFrom.name} ${o.contactFrom.phone}\nВыгрузка: ${o.to.addr}\n${o.to.lat}, ${o.to.lng}\n${o.contactTo.name} ${o.contactTo.phone}${o.note ? '\n' + o.note : ''}`;
+  return `Заявка №${o.no} — ${o.cargo}, ${nTrips(orderLeft(o))} из ${o.total}, ${o.m3} м³/рейс\n${new Date(o.date).toLocaleDateString('ru-RU')} ${timeSpan(o)}\nПогрузка: ${o.from.addr}\n${o.from.lat}, ${o.from.lng}\n${o.contactFrom.name} ${o.contactFrom.phone}\nВыгрузка: ${o.to.addr}\n${o.to.lat}, ${o.to.lng}\n${o.contactTo.name} ${o.contactTo.phone}${o.note ? '\n' + o.note : ''}`;
 }
 A.newOrder = d => orderForm(null, d.chat);
 A.refill = d => {
@@ -177,7 +177,7 @@ function readAudience(root) { return $$('.aud input[type=checkbox]:checked', roo
 
 function orderForm(o, chatId, title) {
   const isNew = !o || !o.id;
-  o = o || { client: '', cargo: '', total: 6, m3: 20, price: 0, date: isoDay(now()), time: '08:00', from: { addr: '', lat: 0, lng: 0 }, to: { addr: '', lat: 0, lng: 0 }, contactFrom: { name: '', phone: '' }, contactTo: { name: '', phone: '' }, note: '' };
+  o = o || { client: '', cargo: '', total: 6, m3: 20, price: 0, date: isoDay(now()), time: '08:00', timeTo: '', from: { addr: '', lat: 0, lng: 0 }, to: { addr: '', lat: 0, lng: 0 }, contactFrom: { name: '', phone: '' }, contactTo: { name: '', phone: '' }, note: '' };
   const clients = [...new Set(db.orders.map(x => x.client))];
   const co = p => p.lat ? `${p.lat}, ${p.lng}` : '';
   const pre = chatId ? [chatId] : [];
@@ -186,7 +186,8 @@ function orderForm(o, chatId, title) {
     <div class="form">
       <div class="two"><label>Заказчик<input id="of-client" list="dl-cl" value="${esc(o.client)}" placeholder="ООО «…»" autofocus></label><label>Груз<input id="of-cargo" list="dl-cargo" value="${esc(o.cargo)}" placeholder="Песок, щебень, грунт…"></label></div>
       <datalist id="dl-cl">${clients.map(c => `<option value="${esc(c)}">`).join('')}</datalist><datalist id="dl-cargo">${CARGO.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-      <div class="four"><label>Рейсов<input id="of-total" type="number" min="1" value="${o.total}"></label><label>м³ на рейс<input id="of-m3" type="number" min="1" value="${o.m3}"></label><label>Дата<input id="of-date" type="date" value="${o.date}"></label><label>С<input id="of-time" type="time" value="${o.time}"></label></div>
+      <div class="pair"><label>Рейсов<input id="of-total" type="number" min="1" value="${o.total}"></label><label>м³ на рейс<input id="of-m3" type="number" min="1" value="${o.m3}"></label></div>
+      <div class="when3"><label>Дата<input id="of-date" type="date" value="${o.date}"></label><label>С<input id="of-time" type="time" value="${o.time || ''}"></label><label>До<input id="of-time2" type="time" value="${o.timeTo || ''}"></label></div>
       <fieldset><legend><i class="dot a"></i>Погрузка</legend>
         <label>Адрес<input id="of-fa" value="${esc(o.from.addr)}" placeholder="Карьер, склад, котлован"></label>
         <label>Координаты <small>вставьте «55.75, 37.61» или ссылку Яндекс Карт</small><input id="of-fc" value="${esc(co(o.from))}" placeholder="55.751244, 37.618423"></label>
@@ -229,7 +230,7 @@ function orderForm(o, chatId, title) {
     if (errs.length) return toast('Заполните: ' + errs.join(', '), 'Координаты: два числа через запятую', 'bad');
     const targets = isNew ? readAudience(m.el) : [];
     if (isNew && !targets.length) return toast('Выберите, кому отправить', 'Чат «Все водители», группу или отдельных водителей', 'bad');
-    const data = { id: isNew ? undefined : o.id, client: g('client') || 'Без заказчика', cargo: g('cargo'), total: Math.max(1, +g('total') || 1), m3: +g('m3') || 20, date: g('date') || isoDay(now()), time: g('time'), price: 0, unit, rateDrv: +g('rd') || 0, rateCo: +g('rc') || 0, note: g('note'),
+    const data = { id: isNew ? undefined : o.id, client: g('client') || 'Без заказчика', cargo: g('cargo'), total: Math.max(1, +g('total') || 1), m3: +g('m3') || 20, date: g('date') || isoDay(now()), time: g('time'), timeTo: g('time2'), price: 0, unit, rateDrv: +g('rd') || 0, rateCo: +g('rc') || 0, note: g('note'),
       from: { addr: g('fa'), lat: fc[0], lng: fc[1] }, to: { addr: g('ta'), lat: tc[0], lng: tc[1] }, contactFrom: { name: g('fn'), phone: g('fp') }, contactTo: { name: g('tn'), phone: g('tp') } };
     if (isNew) delete data.id;
     if (!isNew && data.total < orderUsed(o)) return toast('Рейсов не может быть меньше уже взятых', `Взято: ${orderUsed(o)}`, 'bad');

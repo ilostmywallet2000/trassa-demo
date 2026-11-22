@@ -104,7 +104,7 @@ Drv.order = oid => {
     </div>
     ${drvRate(o)}
     <div class="card"><div class="card-h"><b>${esc(o.cargo)}</b>${chip(ic('cube') + o.m3 + ' м³')}</div>
-      <div class="kv-grid"><div class="kv"><span>Когда</span><b>${fmtDay(new Date(o.date + 'T12:00').getTime())} с ${esc(o.time || '—')}</b></div><div class="kv"><span>Заказчик</span><b>${esc(o.client)}</b></div></div>
+      <div class="kv-grid"><div class="kv"><span>Когда</span><b>${fmtDay(new Date(o.date + 'T12:00').getTime())} ${esc(timeSpan(o))}</b></div><div class="kv"><span>Заказчик</span><b>${esc(o.client)}</b></div></div>
       ${o.note ? `<div class="note">${ic('alert')}${esc(o.note)}</div>` : ''}
     </div>
     ${routeBlock(o, true)}
