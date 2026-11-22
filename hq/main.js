@@ -265,7 +265,15 @@ async function checkUpdate() {
       + (IN_APP ? `<a class="btn acc sm" href="${SITE}install.html">Скачать</a>` : `<button class="btn acc sm" id="upd-go">Обновить</button>`);
     document.body.appendChild(b);
     const go = document.getElementById('upd-go');
-    if (go) go.onclick = async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(x => x.update())); } catch (e) {} location.reload(); };
+    if (go) go.onclick = async () => {
+      go.disabled = true; go.textContent = 'Обновляем…';
+      try {   // новый обработчик офлайна должен успеть встать, иначе страница откроется старой
+        const sw = navigator.serviceWorker, rs = await sw.getRegistrations();
+        await Promise.all(rs.map(x => x.update()));
+        if (rs.some(x => x.installing || x.waiting)) await new Promise(r => { sw.addEventListener('controllerchange', r, { once: true }); setTimeout(r, 4000); });
+      } catch (e) {}
+      location.replace(location.pathname + '?u=' + Date.now() + location.hash);
+    };
   } catch (e) { /* нет интернета — проверим позже */ }
 }
 setTimeout(checkUpdate, 3000);
