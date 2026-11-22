@@ -211,9 +211,18 @@ function chatView(key, chatId, opts = {}) {
   return `<div class="chat">
     <div class="chat-h">${back}<div class="ch-t"><b>${esc(title)}</b><span>${esc(sub)}</span></div><div class="ch-a">${actions}</div></div>
     <div class="msgs" data-keep="msgs-${c.id}" data-bottom>${body || empty('chat', 'Сообщений пока нет', 'Напишите первым')}</div>
+    ${key === 'disp' || who().role === 'driver' ? `<div class="quick" data-keep="quick-${c.id}">${quickList(key === 'disp' ? 'disp' : 'driver').map(t => `<button type="button" data-a="quick" data-chat="${c.id}" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
     <form class="composer" data-send="${c.id}"><textarea id="cmp-${c.id}" rows="1" placeholder="Сообщение…" enterkeyhint="send"></textarea><button class="send" aria-label="Отправить">${ic('send')}</button></form>
   </div>`;
 }
+let quickLast = { v: '', at: 0 };
+A.quick = d => {   // быстрый ответ — отправляется сразу (повторное нажатие в течение секунды не дублирует)
+  if (quickLast.v === d.chat + d.v && now() - quickLast.at < 1200) return;
+  quickLast = { v: d.chat + d.v, at: now() };
+  const w = who(), key = w.role === 'disp' ? 'disp' : w.id;
+  Act.send(d.chat, key, d.v); Act.markRead(key, d.chat);
+  if (navigator.vibrate) navigator.vibrate(12);
+};
 document.addEventListener('submit', e => {
   const f = e.target.closest('form[data-send]'); if (!f) return;
   e.preventDefault();

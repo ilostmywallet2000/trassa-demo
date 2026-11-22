@@ -269,6 +269,12 @@ function msg(chatId, from, text, extra) {
 function sysMsgToOrderChats(o, text) { (o.chats || []).forEach(cid => msg(cid, 'sys', text, { orderId: o.id, kind: 'sys' })); }
 
 /* ---------- действия над данными ---------- */
+/* быстрые ответы в чате: свой набор у водителей и у диспетчера; диспетчер меняет в «Настройках» */
+const QUICK_DEF = {
+  driver: ['Общий салам', 'Принял', 'Выехал', 'На погрузке', 'Загрузился, еду', 'На выгрузке', 'Выгрузился', 'Стою в пробке', 'Буду через 15 минут', 'Перезвоните мне'],
+  disp: ['Общий салам', 'Принято', 'Спасибо!', 'Ожидайте', 'Где вы сейчас?', 'Новая заявка в чате', 'Будьте на связи', 'Перезвоню через 5 минут'],
+};
+const quickList = role => ((db.settings.quick || {})[role]) || QUICK_DEF[role] || [];
 const Act = {
   clockIn(did) {
     return tx(db => {
@@ -482,6 +488,7 @@ const Act = {
   addDriver(data) { return tx(db => { const d = { id: uid('d'), name: data.name, phone: data.phone || '', status: 'off', since: now(), breakdown: null, f: {}, docs: [], hired: isoDay(now()) }; db.drivers.push(d); return d; }); },
   addVehicle(data) { return tx(db => { const v = Object.assign({ id: uid('v'), state: 'ready', stateNote: '', driverId: null, docs: [] }, data); db.vehicles.push(v); return v; }); },
   setting(k, val) { return tx(db => { db.settings[k] = val; }); },
+  setQuick(role, list) { return tx(db => { const q = Object.assign({}, QUICK_DEF, db.settings.quick || {}); q[role] = list; db.settings.quick = q; }); },
 };
 function postOrder(o, targets) {
   targets.forEach(tg => {

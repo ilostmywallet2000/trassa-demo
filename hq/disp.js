@@ -399,12 +399,28 @@ Disp.settings = () => `
   <div class="card set">
     <div class="sw-row"><div><b>Демо-движение</b><span>Водители-боты берут рейсы, пишут в чат и завершают рейсы — чтобы посмотреть пульт в работе</span></div><button class="switch ${db.settings.bots ? 'on' : ''}" data-a="toggleSet" data-k="bots"><i></i></button></div>
   </div>
+  <div class="card set"><div class="card-h"><b>Быстрые ответы в чате</b><button class="btn ghost sm" data-a="quickReset">Вернуть стандартные</button></div>
+    <p class="muted">Кнопки над полем сообщения — нажал, и сообщение сразу ушло. Изменения сразу появятся у всех.</p>
+    <div class="qedit">${[['driver', 'У водителей'], ['disp', 'У диспетчера']].map(([r, t]) => `<div class="qcol"><div class="aud-h">${t}<span>${quickList(r).length}</span></div>
+      <div class="qlist">${quickList(r).map((x, i) => `<span class="qchip">${esc(x)}<button data-a="quickOff" data-r="${r}" data-i="${i}" aria-label="Убрать">${ic('x')}</button></span>`).join('') || '<span class="muted sm">Пусто</span>'}</div>
+      <div class="qadd"><input id="qa-${r}" maxlength="60" placeholder="Новая фраза…" enterkeyhint="done"><button class="btn soft sm" data-a="quickAdd" data-r="${r}">${ic('plus')}Добавить</button></div></div>`).join('')}</div>
+  </div>
   ${IN_APP ? '' : `<div class="card set"><div class="card-h"><b>Как проверить вдвоём</b></div>
     <p class="muted">Данные общие: откройте приложение на другом телефоне (или во второй вкладке) и войдите водителем или механиком — всё, что делает один, через секунду видно у другого.</p>
     <button class="btn soft" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>
   </div>`}
   <div class="card set danger-zone"><div class="card-h"><b>Демо-данные</b></div><p class="muted">Вернуть всё как было: водители, машины, заявки, чаты. Ваши документы и сканы удалятся.</p><button class="btn ghost danger" data-a="resetDemo">${ic('refill')}Сбросить демо</button></div>`;
 A.toggleSet = d => Act.setting(d.k, !db.settings[d.k]);
+A.quickAdd = d => {
+  const inp = document.getElementById('qa-' + d.r), v = (inp && inp.value || '').trim().replace(/\s+/g, ' ');
+  if (!v) { if (inp) inp.focus(); return toast('Напишите фразу', 'Например: «Буду через 10 минут»'); }
+  const list = quickList(d.r);
+  if (list.some(x => x.toLowerCase() === v.toLowerCase())) return toast('Такая фраза уже есть', v);
+  inp.value = ''; Act.setQuick(d.r, list.concat(v)); toast('Добавлено', v, 'ok');
+};
+A.quickOff = d => { const list = quickList(d.r).slice(); const x = list.splice(+d.i, 1)[0]; Act.setQuick(d.r, list); toast('Убрано', x); };
+A.quickReset = async () => { if (!await confirmBox('Вернуть стандартные?', 'Ваши фразы заменятся стандартным набором — у водителей и у диспетчера.', 'Вернуть')) return; Act.setQuick('driver', QUICK_DEF.driver.slice()); Act.setQuick('disp', QUICK_DEF.disp.slice()); toast('Стандартные ответы возвращены', '', 'ok'); };
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.qadd input')) { e.preventDefault(); A.quickAdd({ r: e.target.id.slice(3) }); } });
 A.resetDemo = async () => { if (!await confirmBox('Сбросить демо?', Cloud.on ? 'Все изменения и документы удалятся у всех — на всех телефонах.' : 'Все изменения и загруженные документы будут удалены.', 'Сбросить', 'danger')) return; await FS.clear(); if (Cloud.on) cloudReplace(seed()); else { db = seed(); saveRaw(); emit(); } toast('Демо сброшено', Cloud.on ? 'У всех телефонов' : '', 'ok'); go('#/pult'); };
 A.newTab = () => window.open(location.href.split('#')[0] + '#/login', '_blank');
 

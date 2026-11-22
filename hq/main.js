@@ -142,11 +142,11 @@ function mobShell(role, page, id) {
 
 /* ---------- перерисовка с сохранением ввода и прокрутки ---------- */
 function snapshot() {
-  const s = { vals: {}, scroll: {}, bottom: {}, focus: null };
+  const s = { vals: {}, scroll: {}, left: {}, bottom: {}, focus: null };
   const a = document.activeElement;
   if (a && a.id && $('#app').contains(a)) s.focus = { id: a.id, ss: a.selectionStart, se: a.selectionEnd };
   $$('#app input[id], #app textarea[id], #app select[id]').forEach(el => { if (el.type !== 'file' && el.type !== 'checkbox') s.vals[el.id] = el.value; });
-  $$('#app [data-keep]').forEach(el => { s.scroll[el.dataset.keep] = el.scrollTop; s.bottom[el.dataset.keep] = el.scrollHeight - el.scrollTop - el.clientHeight < 80; });
+  $$('#app [data-keep]').forEach(el => { s.scroll[el.dataset.keep] = el.scrollTop; s.left[el.dataset.keep] = el.scrollLeft; s.bottom[el.dataset.keep] = el.scrollHeight - el.scrollTop - el.clientHeight < 80; });
   s.win = window.scrollY;
   return s;
 }
@@ -156,6 +156,7 @@ function restore(s) {
     const k = el.dataset.keep;
     if (el.hasAttribute('data-bottom')) { if (!(k in s.scroll) || s.bottom[k]) el.scrollTop = el.scrollHeight; else el.scrollTop = s.scroll[k]; }
     else if (k in s.scroll) el.scrollTop = s.scroll[k];
+    if (s.left[k]) el.scrollLeft = s.left[k];
   });
   if (s.focus) { const el = document.getElementById(s.focus.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(s.focus.ss, s.focus.se); } catch (e) {} } }
   if (s.sameRoute) window.scrollTo(0, s.win);
