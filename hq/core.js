@@ -153,9 +153,9 @@ window.addEventListener('storage', e => {
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
-const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false };
-async function api(path, opt = {}) {
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
+async function api(path, opt = {}, ms = 30000) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
   try {
     const r = await fetch(CLOUD.url + '/rest/v1/' + path, Object.assign({ signal: ctl.signal, cache: 'no-store' }, opt, { headers: Object.assign({ apikey: CLOUD.key, 'Content-Type': 'application/json' }, opt.headers || {}) }));
     const txt = await r.text();
@@ -163,13 +163,17 @@ async function api(path, opt = {}) {
     return txt ? JSON.parse(txt) : null;
   } finally { clearTimeout(t); }
 }
+/* связь: одна осечка на мобильном интернете — не повод пугать. «Нет связи» — только если
+   сервер не отвечает дольше 20 секунд подряд; сообщение не чаще раза в 3 минуты */
 function setOnline(ok) {
+  if (ok) { Cloud.fails = 0; Cloud.lastOk = now(); }
+  else { Cloud.fails++; if (Cloud.online !== false && (Cloud.fails < 3 || now() - Cloud.lastOk < 20e3)) return; }
   if (Cloud.online === ok) return;
   const was = Cloud.online; Cloud.online = ok;
   document.documentElement.classList.toggle('offline', !ok);
   if (typeof toast !== 'function') return;
-  if (!ok) toast('Нет связи с сервером', 'Работайте дальше — изменения отправятся, когда появится интернет', 'bad');
-  else if (was === false) toast('Связь восстановлена', 'Данные снова общие', 'ok');
+  if (!ok) { if (now() - Cloud.warned > 180e3) { Cloud.warned = now(); toast('Слабый интернет', 'Работайте дальше — всё отправится, когда связь наладится', 'bad'); } }
+  else if (was === false && Cloud.warned) toast('Связь восстановлена', 'Данные снова общие', 'ok');
 }
 /* взять данные с сервера и заново применить свои ещё не отправленные действия */
 function adopt(row) {
@@ -181,6 +185,7 @@ function adopt(row) {
   }
   saveRaw(); emit();
 }
+const getRowQ = async cols => { const rows = await api(`trassa_state?id=eq.${CLOUD.id}&select=${cols}`, {}, 10000); return rows && rows[0] ? rows[0] : null; };
 const getRow = async (cols = 'ver,data') => { const rows = await api(`trassa_state?id=eq.${CLOUD.id}&select=${cols}`); return rows && rows[0] ? rows[0] : null; };
 async function cloudPush() {
   if (Cloud.busy || !Cloud.ready || !Cloud.pending.length) return;
@@ -201,7 +206,7 @@ async function cloudPush() {
 async function cloudPoll() {
   if (!Cloud.ready || Cloud.busy || Cloud.pending.length) return;
   try {
-    const head = await getRow('ver');
+    const head = await getRowQ('ver');
     setOnline(true);
     if (!head || head.ver === Cloud.ver) return;
     const row = await getRow();
