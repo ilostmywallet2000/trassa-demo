@@ -57,7 +57,7 @@ Drv.home = () => {
   const t0 = startOfDay(now()), today = db.trips.filter(t => t.driverId === d.id && t.state === 'done' && t.doneAt >= t0);
   return `${statusCard(d)}
     ${at ? `<a class="mytrip ${at.state}" href="#/trip"><div><small>Ваш рейс</small><b>№${ao.no} · ${esc(ao.cargo)}</b><span>В работе — откройте маршрут</span></div>${ic('right')}</a>` : ''}
-    <div class="mini-stats"><div><b>${today.length}</b><span>${plural(today.length, 'рейс', 'рейса', 'рейсов')} сегодня</span></div><div><b>${fmtNum(today.reduce((s, t) => s + t.m3, 0))}</b><span>м³ сегодня</span></div><div><b>${open.reduce((s, o) => s + orderLeft(o), 0)}</b><span>свободных рейсов</span></div></div>
+    <div class="mini-stats"><button data-a="stat" data-k="drv-today" data-id="${d.id}"><b>${today.length}</b><span>${plural(today.length, 'рейс', 'рейса', 'рейсов')} сегодня</span>${ic('right')}</button><button data-a="stat" data-k="drv-m3" data-id="${d.id}"><b>${fmtNum(today.reduce((s, t) => s + t.m3, 0))}</b><span>м³ сегодня</span>${ic('right')}</button><button data-a="stat" data-k="drv-free"><b>${open.reduce((s, o) => s + orderLeft(o), 0)}</b><span>свободных рейсов</span>${ic('right')}</button></div>
     <div class="sec-h"><b>Заявки</b><span>${open.length}</span></div>
     <div class="olist">${open.map(o => orderCard(o, { did: d.id })).join('') || empty('orders', 'Свободных заявок нет', 'Новые заявки появятся здесь и в чате')}</div>
     ${spent.length ? `<div class="sec-h"><b>Потрачено</b><span>${spent.length}</span></div><div class="olist">${spent.map(o => orderCard(o, { did: d.id })).join('')}</div>` : ''}`;
@@ -185,8 +185,8 @@ Drv.me = () => {
   const week = db.trips.filter(t => t.driverId === d.id && t.state === 'done' && t.doneAt > now() - 7 * DAY);
   return `<div class="m-top"><div><b>Профиль</b></div><button class="icon-btn" data-a="logout" title="Выйти">${ic('logout')}</button></div>
     <div class="me-h">${avatar(d, 'xl')}<div><h2>${esc(d.name)}</h2>${statusChip(d)}<span class="muted">${esc(d.phone)}</span></div></div>
-    <div class="mini-stats"><div><b>${week.length}</b><span>рейсов за 7 дней</span></div><div><b>${fmtNum(week.reduce((s, t) => s + t.m3, 0))}</b><span>м³ за 7 дней</span></div><div><b>${d.docs.length}</b><span>документов</span></div></div>
+    <div class="mini-stats"><button data-a="stat" data-k="drv-7d" data-id="${d.id}"><b>${week.length}</b><span>рейсов за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-m3w" data-id="${d.id}"><b>${fmtNum(week.reduce((s, t) => s + t.m3, 0))}</b><span>м³ за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-mydocs" data-id="${d.id}"><b>${d.docs.length}</b><span>документов</span>${ic('right')}</button></div>
     <div class="card"><div class="card-h"><b>Моя машина</b></div>${v ? `<div class="my-veh">${plate(v, 'lg')}<div><b>${esc(v.model)}</b><span>${esc(v.axle)} · ${v.volume} м³</span>${vehChip(v)}</div></div>` : '<p class="muted">Машина не закреплена. Механик назначит её в своём приложении.</p>'}</div>
-    <div class="card"><div class="card-h"><b>Мои документы</b></div>${docGrid({ type: 'driver', id: d.id }, d.docs, true)}</div>
+    <div class="card" id="myDocs"><div class="card-h"><b>Мои документы</b></div>${docGrid({ type: 'driver', id: d.id }, d.docs, true)}</div>
     ${v && v.docs.length ? `<div class="card"><div class="card-h"><b>Документы машины</b></div>${docGrid({ type: 'vehicle', id: v.id }, v.docs, false)}</div>` : ''}`;
 };

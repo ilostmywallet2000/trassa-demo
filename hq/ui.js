@@ -98,7 +98,10 @@ const chip = (t, c = '') => `<span class="chip ${c}">${t}</span>`;
 const tripChip = t => chip(TRIP_STATE[t.state].t, TRIP_STATE[t.state].c);
 const vehChip = v => v.state === 'repair' ? chip(ic('wrench') + 'Ремонт', 'bad') : chip(ic('check') + 'Готова', 'ok');
 const empty = (icon, title, sub, extra = '') => `<div class="empty">${ic(icon)}<b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${extra}</div>`;
-const kpi = (label, value, sub, cls = '') => `<div class="kpi ${cls}"><span>${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+// плитка-цифра; если передан k — это кнопка, которая открывает подробности (A.stat)
+const kpi = (label, value, sub, cls = '', k = '', id = '') => k
+  ? `<button class="kpi click ${cls}" data-a="stat" data-k="${k}"${id ? ` data-id="${id}"` : ''}><span>${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}<i class="kpi-go">${ic('right')}</i></button>`
+  : `<div class="kpi ${cls}"><span>${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
 
 /* ячейки рейсов: каждая клетка — рейс */
 function tripCells(o) {
@@ -407,7 +410,7 @@ function driverProfile(did, viewer) {
         <div class="ph-row">${plate(v)}${v ? `<span class="muted">${esc(v.model)} · ${v.volume} м³</span>` : ''}</div></div>
       <div class="ph-a"><a class="btn soft" href="${telHref(d.phone)}">${ic('phone')}${esc(d.phone)}</a>${viewer === 'disp' ? `<a class="btn soft" href="#/chat/dm-${d.id}">${ic('chat')}Написать</a>` : ''}</div>
     </div>
-    ${viewer !== 'mech' ? `<div class="kpis sm">${kpi('Рейсов сегодня', dToday.length)}${kpi('Кубатура сегодня', m3(dToday.reduce((s, t) => s + t.m3, 0)))}${kpi('Рейсов за 7 дней', db.trips.filter(t => t.driverId === did && t.state === 'done' && t.doneAt > now() - 7 * DAY).length)}${kpi('Документов', d.docs.length)}</div>` : ''}
+    ${viewer !== 'mech' ? `<div class="kpis sm">${kpi('Рейсов сегодня', dToday.length, '', '', 'drv-today', did)}${kpi('Кубатура сегодня', m3(dToday.reduce((s, t) => s + t.m3, 0)), '', '', 'drv-m3', did)}${kpi('Рейсов за 7 дней', db.trips.filter(t => t.driverId === did && t.state === 'done' && t.doneAt > now() - 7 * DAY).length, '', '', 'drv-7d', did)}${kpi('Документов', d.docs.length, '', '', 'drv-docs', did)}</div>` : ''}
     <div class="tabs">${tabs.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-a="tab" data-k="prof-${did}" data-v="${k}">${t}</button>`).join('')}</div>`;
   let body = '';
   if (tab === 'data') {
@@ -477,3 +480,123 @@ A.openTtn = async d => {
 };
 A.confirmTrip = d => { Act.confirmTrip(d.id); toast('Рейс подтверждён', '', 'ok'); };
 A.rejectTrip = async d => { if (await confirmBox('Отклонить рейс?', 'Рейс вернётся в заявку, водитель получит сообщение.', 'Отклонить', 'danger')) Act.rejectTrip(d.id, ''); };
+
+
+/* ---------- подробности по плиткам-цифрам (водитель и диспетчер) ---------- */
+A.stat = d => statDetail(d.k, d.id);
+function sdTrip(t, withDriver) {
+  const o = O(t.orderId), dr = D(t.driverId); if (!o || !dr) return '';
+  const done = t.state === 'done';
+  return `<div class="sd-row">
+    <div class="sd-t"><b>${fmtTime(done ? t.doneAt : t.takenAt)}</b><small>${done ? 'сдал' : 'взял'}</small></div>
+    <a class="sd-m" href="#/order/${o.id}" data-close><b>№${o.no} · ${esc(o.cargo)}</b><span>${withDriver ? esc(dr.name) + ' · ' : ''}${esc(o.from.addr)} → ${esc(o.to.addr)}</span></a>
+    <div class="sd-v">${done ? `<b>${m3(t.m3)}</b>` : '<b class="info">в рейсе</b>'}${t.ttn ? `<button class="sd-ttn" data-a="openTtn" data-id="${t.id}">${ic('file')}ТТН</button>` : done ? '<small>без ТТН</small>' : `<small>${ago(t.takenAt)}</small>`}</div>
+  </div>`;
+}
+const sdSum = cells => `<div class="sd-sum">${cells.map(([v, l, c]) => `<div class="${c || ''}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>`;
+const sdH = (t, n) => `<div class="sd-h"><b>${t}</b>${n !== undefined ? `<span>${n}</span>` : ''}</div>`;
+const sdBar = (label, sub, val, max, valText, href) => `<${href ? `a href="${href}" data-close` : 'div'} class="sd-bar"><div class="sd-bl"><b>${label}</b><span>${sub}</span></div><div class="sd-br"><b>${valText}</b><i><em style="width:${max ? (val > 0 ? Math.max(3, val / max * 100) : 0).toFixed(1) : 0}%"></em></i></div></${href ? 'a' : 'div'}>`;
+const sdEmpty = t => `<div class="sd-empty">${ic('orders')}<span>${t}</span></div>`;
+const sumM3 = ts => ts.reduce((s, t) => s + (t.m3 || 0), 0);
+function byKey(ts, key) { const m = new Map(); ts.forEach(t => { const k = key(t); if (!m.has(k)) m.set(k, []); m.get(k).push(t); }); return [...m.entries()]; }
+function daysBack(ts, n) {
+  const out = []; const t0 = startOfDay(now());
+  for (let i = 0; i < n; i++) { const a = t0 - i * DAY, b = a + DAY; const list = ts.filter(t => t.doneAt >= a && t.doneAt < b).sort((x, y) => y.doneAt - x.doneAt); out.push({ a, list }); }
+  return out;
+}
+const dayName = a => a === startOfDay(now()) ? 'Сегодня' : a === startOfDay(now()) - DAY ? 'Вчера' : new Date(a).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+function statDetail(k, id) {
+  const t0 = startOfDay(now());
+  const doneAll = db.trips.filter(t => t.state === 'done');
+  const work = db.trips.filter(t => t.state === 'confirmed' || t.state === 'pending');
+  let title = '', sub = '', html = '';
+
+  /* ----- водитель ----- */
+  if (k === 'drv-docs' || k === 'drv-mydocs') {   // папка документов водителя: нажать — открыть
+    const d = D(id); if (!d) return;
+    const docs = d.docs.slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+    title = 'Документы'; sub = d.name;
+    html = (docs.map(x => `<button class="sd-row doc" data-a="openDoc" data-t="driver" data-id="${d.id}" data-doc="${x.id}">
+        <span class="sd-thumb">${x.thumb ? `<img src="${x.thumb}" alt="">` : ic('file')}</span>
+        <span class="sd-m"><b>${esc(x.title || x.kind)}</b><span>${esc(x.kind || '')}${x.number ? ' · № ' + esc(x.number) : ''}${x.at ? ' · ' + fmtDay(x.at) : ''}</span></span>
+        <span class="sd-v"><small>${x.mime === 'application/pdf' ? 'PDF' + (x.pages ? ' · ' + x.pages + ' стр.' : '') : 'фото'}</small>${ic('right')}</span></button>`).join(''))
+      || sdEmpty(who().role === 'driver' ? 'Документов пока нет. Добавьте их ниже: «Сканировать» или «Загрузить».' : 'Документов пока нет. Добавьте их на вкладке «Документы».');
+  }
+  if (k === 'drv-m3w') {
+    const d = D(id); if (!d) return;
+    const days = daysBack(db.trips.filter(t => t.state === 'done' && t.driverId === id), 7), week = days.flatMap(x => x.list);
+    const byOrd = byKey(week, t => t.orderId).map(([oid, ts]) => ({ o: O(oid), ts, v: sumM3(ts) })).filter(g => g.o).sort((a, b) => b.v - a.v);
+    const omax = Math.max(0, ...byOrd.map(g => g.v)), dmax = Math.max(0, ...days.map(x => sumM3(x.list)));
+    title = 'Кубатура за 7 дней'; sub = d.name;
+    html = sdSum([[m3(sumM3(week)), 'всего', 'acc'], [week.length, plural(week.length, 'рейс', 'рейса', 'рейсов')], [m3(Math.round(sumM3(week) / 7)), 'в среднем в день']])
+      + sdH('По заявкам') + (byOrd.map(g => sdBar(`№${g.o.no} · ${esc(g.o.cargo)}`, `${g.ts.length} ${plural(g.ts.length, 'рейс', 'рейса', 'рейсов')} × ${fmtNum(Math.round(g.v / g.ts.length))} м³`, g.v, omax, m3(g.v), `#/order/${g.o.id}`)).join('') || sdEmpty('За неделю рейсов не было'))
+      + sdH('По дням') + days.map(x => `<details class="sd-day" ${x.a === t0 ? 'open' : ''}><summary>${sdBar(dayName(x.a), `${x.list.length} ${plural(x.list.length, 'рейс', 'рейса', 'рейсов')}`, sumM3(x.list), dmax, m3(sumM3(x.list)))}</summary>${x.list.map(t => sdTrip(t)).join('') || '<div class="sd-none">Рейсов не было</div>'}</details>`).join('');
+  }
+  if (k === 'drv-free') { const el = document.querySelector('.sec-h'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (['drv-today', 'drv-m3', 'drv-7d'].includes(k)) {
+    const d = D(id); if (!d) return;
+    const mine = doneAll.filter(t => t.driverId === id), today = mine.filter(t => t.doneAt >= t0).sort((a, b) => b.doneAt - a.doneAt);
+    const act = work.filter(t => t.driverId === id);
+    sub = d.name;
+    if (k === 'drv-today') {
+      title = 'Рейсы за сегодня';
+      html = sdSum([[today.length, plural(today.length, 'рейс', 'рейса', 'рейсов')], [m3(sumM3(today)), 'вывезено'], [`${today.filter(t => t.ttn).length}/${today.length}`, 'с ТТН']])
+        + (act.length ? sdH('Сейчас в рейсе') + act.map(t => sdTrip(t)).join('') : '')
+        + sdH('Выполнено сегодня', today.length) + (today.map(t => sdTrip(t)).join('') || sdEmpty('Сегодня рейсов ещё не было'));
+    }
+    if (k === 'drv-m3') {
+      title = 'Кубатура за сегодня';
+      const groups = byKey(today, t => t.orderId).map(([oid, ts]) => ({ o: O(oid), ts, v: sumM3(ts) })).filter(g => g.o).sort((a, b) => b.v - a.v);
+      const max = Math.max(0, ...groups.map(g => g.v));
+      html = sdSum([[m3(sumM3(today)), 'всего'], [today.length, plural(today.length, 'рейс', 'рейса', 'рейсов')], [today.length ? m3(Math.round(sumM3(today) / today.length)) : '—', 'в среднем за рейс']])
+        + sdH('По заявкам') + (groups.map(g => sdBar(`№${g.o.no} · ${esc(g.o.cargo)}`, `${g.ts.length} ${plural(g.ts.length, 'рейс', 'рейса', 'рейсов')} × ${fmtNum(Math.round(g.v / g.ts.length))} м³`, g.v, max, m3(g.v), `#/order/${g.o.id}`)).join('') || sdEmpty('Сегодня ещё ничего не вывезено'))
+        + (today.length ? sdH('По рейсам', today.length) + today.map(t => sdTrip(t)).join('') : '');
+    }
+    if (k === 'drv-7d') {
+      title = 'Рейсы за 7 дней';
+      const days = daysBack(mine, 7), week = days.flatMap(x => x.list), max = Math.max(0, ...days.map(x => sumM3(x.list)));
+      html = sdSum([[week.length, plural(week.length, 'рейс', 'рейса', 'рейсов')], [m3(sumM3(week)), 'вывезено'], [fmtNum(Math.round(week.length / 7 * 10) / 10), 'рейсов в день']])
+        + sdH('По дням') + days.map(x => `<details class="sd-day" ${x.a === t0 ? 'open' : ''}><summary>${sdBar(dayName(x.a), `${x.list.length} ${plural(x.list.length, 'рейс', 'рейса', 'рейсов')}`, sumM3(x.list), max, m3(sumM3(x.list)))}</summary>${x.list.map(t => sdTrip(t)).join('') || '<div class="sd-none">Рейсов не было</div>'}</details>`).join('');
+    }
+  }
+
+  /* ----- диспетчер ----- */
+  if (k === 'line') {
+    title = 'Водители'; sub = 'кто на линии, кто в поломке, кто закончил';
+    const grp = [['sos', 'Нужна помощь', d => d.status === 'broken' && d.breakdown && d.breakdown.kind === 'sos'], ['broken', 'Поломка', d => d.status === 'broken' && !(d.breakdown && d.breakdown.kind === 'sos')], ['line', 'На линии', d => d.status === 'line'], ['off', 'Закончили работу', d => d.status !== 'line' && d.status !== 'broken']];
+    const row = d => { const v = vehOf(d.id), tt = doneAll.filter(t => t.driverId === d.id && t.doneAt >= t0), a = work.find(t => t.driverId === d.id), ao = a && O(a.orderId);
+      return `<div class="sd-row drv"><a class="sd-m who" href="#/driver/${d.id}" data-close>${avatar(d, 'sm')}<div><b>${esc(d.name)}</b><span>${v ? v.plate + ' · ' : ''}${ao ? `в рейсе №${ao.no}` : d.status === 'broken' && d.breakdown ? esc(d.breakdown.reason || 'поломка') : STATUS[d.status] ? STATUS[d.status].t.toLowerCase() : ''} · с ${fmtTime(d.since)}</span></div></a>
+        <div class="sd-v"><b>${tt.length} ${plural(tt.length, 'рейс', 'рейса', 'рейсов')}</b><small>${m3(sumM3(tt))}</small></div>
+        <a class="sd-call" href="${telHref(d.phone)}" aria-label="Позвонить">${ic('phone')}</a></div>`; };
+    const lists = grp.map(([c, t, f]) => [c, t, db.drivers.filter(f)]);
+    html = sdSum([[lists[2][2].length, 'на линии', 'ok'], [lists[0][2].length + lists[1][2].length, 'поломка', lists[0][2].length ? 'bad' : 'warn'], [lists[3][2].length, 'закончили']])
+      + lists.filter(([, , l]) => l.length).map(([c, t, l]) => `<div class="sd-grp ${c}">${sdH(t, l.length)}${l.map(row).join('')}</div>`).join('');
+  }
+  if (k === 'trips') {
+    title = 'Рейсы за сегодня'; sub = 'все водители';
+    const today = doneAll.filter(t => t.doneAt >= t0).sort((a, b) => b.doneAt - a.doneAt);
+    html = sdSum([[today.length, 'выполнено', 'ok'], [work.length, 'сейчас в рейсе', 'info'], [`${today.filter(t => t.ttn).length}/${today.length}`, 'с ТТН']])
+      + (work.length ? sdH('Сейчас в рейсе', work.length) + work.sort((a, b) => b.takenAt - a.takenAt).map(t => sdTrip(t, true)).join('') : '')
+      + sdH('Выполнено сегодня', today.length) + (today.map(t => sdTrip(t, true)).join('') || sdEmpty('Сегодня рейсов ещё не было'));
+  }
+  if (k === 'm3') {
+    title = 'Кубатура'; sub = 'кто, по каким заявкам и сколько вывез';
+    const today = doneAll.filter(t => t.doneAt >= t0), days = daysBack(doneAll, 7), week = days.flatMap(x => x.list);
+    const byDrv = byKey(today, t => t.driverId).map(([did, ts]) => ({ d: D(did), ts, v: sumM3(ts) })).filter(g => g.d).sort((a, b) => b.v - a.v);
+    const byOrd = byKey(today, t => t.orderId).map(([oid, ts]) => ({ o: O(oid), ts, v: sumM3(ts) })).filter(g => g.o).sort((a, b) => b.v - a.v);
+    const mx = a => Math.max(0, ...a.map(g => g.v)), dmax = Math.max(0, ...days.map(x => sumM3(x.list)));
+    html = sdSum([[m3(sumM3(today)), 'сегодня', 'acc'], [today.length, plural(today.length, 'рейс', 'рейса', 'рейсов')], [m3(sumM3(week)), 'за 7 дней']])
+      + sdH('По водителям · сегодня') + (byDrv.map(g => sdBar(esc(g.d.name), `${g.ts.length} ${plural(g.ts.length, 'рейс', 'рейса', 'рейсов')} · ${[...new Set(g.ts.map(t => '№' + O(t.orderId).no))].join(', ')}`, g.v, mx(byDrv), m3(g.v), `#/driver/${g.d.id}`)).join('') || sdEmpty('Сегодня ещё ничего не вывезено'))
+      + (byOrd.length ? sdH('По заявкам · сегодня') + byOrd.map(g => sdBar(`№${g.o.no} · ${esc(g.o.cargo)}`, `${esc(g.o.client)} · ${g.ts.length} ${plural(g.ts.length, 'рейс', 'рейса', 'рейсов')}`, g.v, mx(byOrd), m3(g.v), `#/order/${g.o.id}`)).join('') : '')
+      + sdH('По дням') + days.map(x => sdBar(dayName(x.a), `${x.list.length} ${plural(x.list.length, 'рейс', 'рейса', 'рейсов')}`, sumM3(x.list), dmax, m3(sumM3(x.list)))).join('');
+  }
+  if (k === 'free') {
+    title = 'Свободные рейсы'; sub = 'по каким заявкам ещё можно брать';
+    const open = db.orders.filter(o => o.status === 'open' && orderLeft(o) > 0).sort((a, b) => orderLeft(b) - orderLeft(a));
+    const free = open.reduce((s, o) => s + orderLeft(o), 0);
+    html = sdSum([[free, plural(free, 'свободный рейс', 'свободных рейса', 'свободных рейсов'), 'acc'], [open.length, plural(open.length, 'заявка', 'заявки', 'заявок')], [m3(open.reduce((s, o) => s + orderLeft(o) * (o.m3 || 0), 0)), 'ещё вывезти']])
+      + sdH('Заявки') + (open.map(o => { const vw = viewers(o).length; return `<a class="sd-row ord" href="#/order/${o.id}" data-close><div class="sd-big">${orderLeft(o)}<small>из ${o.total}</small></div><div class="sd-m"><b>№${o.no} · ${esc(o.cargo)}</b><span>${esc(o.client)} · ${esc(o.from.addr)} → ${esc(o.to.addr)}</span>${tripCells(o)}</div><div class="sd-v"><b>${o.m3} м³</b><small>${vw ? `${vw} ${plural(vw, 'смотрит', 'смотрят', 'смотрят')}` : 'за рейс'}</small></div></a>`; }).join('') || sdEmpty('Свободных рейсов нет — все заявки разобраны'));
+  }
+  if (!title) return;
+  modal(`<div class="sd">${html}</div>`, { title, sub, wide: true });
+}

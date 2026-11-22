@@ -17,10 +17,10 @@ Disp.pult = () => {
   const evs = db.events.filter(e => (e.to || []).includes('disp')).slice(-14).reverse();
   return `
   <div class="kpis">
-    ${kpi('На линии', `${line.length}<small>/${db.drivers.length}</small>`, `${broken.length ? broken.length + ' с поломкой' : 'поломок нет'}`, broken.some(d => d.breakdown && d.breakdown.kind === 'sos') ? 'bad' : '')}
-    ${kpi('Рейсов сегодня', doneToday.length, `${work.length} сейчас в рейсе`)}
-    ${kpi('Кубатура сегодня', m3(doneToday.reduce((s, t) => s + t.m3, 0)), `${db.trips.filter(t => t.state === 'done' && t.doneAt >= t0 - 6 * DAY).reduce((s, t) => s + t.m3, 0).toLocaleString('ru-RU')} м³ за 7 дней`)}
-    ${kpi('Свободных рейсов', freeTrips, `в ${open.length} ${plural(open.length, 'заявке', 'заявках', 'заявках')}`, 'acc')}
+    ${kpi('На линии', `${line.length}<small>/${db.drivers.length}</small>`, `${broken.length ? broken.length + ' с поломкой' : 'поломок нет'}`, broken.some(d => d.breakdown && d.breakdown.kind === 'sos') ? 'bad' : '', 'line')}
+    ${kpi('Рейсов сегодня', doneToday.length, `${work.length} сейчас в рейсе`, '', 'trips')}
+    ${kpi('Кубатура сегодня', m3(doneToday.reduce((s, t) => s + t.m3, 0)), `${db.trips.filter(t => t.state === 'done' && t.doneAt >= t0 - 6 * DAY).reduce((s, t) => s + t.m3, 0).toLocaleString('ru-RU')} м³ за 7 дней`, '', 'm3')}
+    ${kpi('Свободных рейсов', freeTrips, `в ${open.length} ${plural(open.length, 'заявке', 'заявках', 'заявках')}`, 'acc', 'free')}
   </div>
   <div class="pult">
     <section class="col">
