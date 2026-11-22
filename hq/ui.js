@@ -76,7 +76,7 @@ function modal(html, opts = {}) {
 function confirmBox(title, text, okText, kind) {
   return new Promise(res => {
     const m = modal(`<p class="muted">${esc(text)}</p><div class="row end gap"><button class="btn ghost" data-r="0">Отмена</button><button class="btn ${kind || 'acc'}" data-r="1">${esc(okText || 'OK')}</button></div>`, { title, onClose: () => res(false) });
-    m.el.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) { const v = b.dataset.r === '1'; m.close(); res(v); } });
+    m.el.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (b) { res(b.dataset.r === '1'); m.close(); } });   // сначала ответ, потом закрыть (закрытие отвечает «нет»)
   });
 }
 
