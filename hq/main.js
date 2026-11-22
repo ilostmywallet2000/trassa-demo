@@ -3,7 +3,7 @@
    Каркас: вход, меню, маршруты, перерисовка, уведомления
    =================================================================== */
 function who() { try { return JSON.parse(sessionStorage.getItem('hq-who')) || {}; } catch (e) { return {}; } }
-function setWho(w) { try { sessionStorage.setItem('hq-who', JSON.stringify(w)); } catch (e) {} lastEv = now(); }
+function setWho(w) { try { sessionStorage.setItem('hq-who', JSON.stringify(w)); } catch (e) {} evSeen = new Set(db.events.map(e => e.id)); }
 function go(h) { if (location.hash === h) render(); else location.hash = h; }
 function route() { const p = location.hash.replace(/^#\/?/, '').split('/'); return { page: p[0] || '', id: p[1] ? decodeURIComponent(p[1]) : null }; }
 function myKey() { const w = who(); return w.role === 'disp' ? 'disp' : w.role === 'mech' ? 'mech' : w.id; }
@@ -37,7 +37,7 @@ function loginView() {
     </section>
     <section class="lg-panel" data-keep="login">
       <h2>Войти как</h2>
-      ${IN_APP ? '<p class="muted">Выберите, кто вы. Демо-версия: данные пока хранятся только на этом телефоне.</p>' : '<p class="muted">Каждая вкладка браузера — отдельный человек. Откройте вторую вкладку и войдите водителем, чтобы увидеть всё вживую.</p>'}
+      ${IN_APP ? '<p class="muted">Выберите, кто вы. Тестовый режим: данные общие для всех телефонов — что пишет диспетчер, водитель видит сразу.</p>' : '<p class="muted">Данные общие для всех телефонов и компьютеров. Войдите диспетчером здесь, а водителем — на телефоне (или во второй вкладке), и всё будет видно у обоих сразу.</p>'}
       <div class="roles">
         <button class="role disp" data-a="login" data-r="disp"><span class="r-ic">${ic('pult')}</span><div><b>Диспетчер</b><span>${esc(db.people.disp.name)} · пульт, заявки, отчёты</span></div>${ic('right')}</button>
         <button class="role mech" data-a="login" data-r="mech"><span class="r-ic">${ic('wrench')}</span><div><b>Механик</b><span>${esc(db.people.mech.name)} · машины и документы</span></div>${ic('right')}</button>
@@ -136,7 +136,7 @@ function mobShell(role, page, id) {
       <div class="mob-page p-${page} ${chatFull ? 'full' : ''}" data-keep="mob-${location.hash}">${P[page](id)}</div>
       <nav class="tabbar show">${navLinks(role, active, badges)}</nav>
     </div>
-    <aside class="mob-aside">${role === 'driver' ? `<b>Приложение водителя</b><p>Так оно выглядит на телефоне. Во второй вкладке войдите диспетчером — заявки, статусы и сообщения обновляются у обоих сразу.</p>` : `<b>Приложение механика</b><p>Механик не видит заявок и чатов: только машины, посадку водителей и документы.</p>`}<button class="btn soft" data-a="newTab">${ic('link')}Вторая вкладка</button><button class="btn ghost" data-a="logout">${ic('logout')}Сменить роль</button></aside>
+    <aside class="mob-aside">${role === 'driver' ? `<b>Приложение водителя</b><p>Так оно выглядит на телефоне. На другом телефоне или во второй вкладке войдите диспетчером — заявки, статусы и сообщения обновляются у обоих сразу.</p>` : `<b>Приложение механика</b><p>Механик не видит заявок и чатов: только машины, посадку водителей и документы.</p>`}<button class="btn soft" data-a="newTab">${ic('link')}Вторая вкладка</button><button class="btn ghost" data-a="logout">${ic('logout')}Сменить роль</button></aside>
   </div>`;
 }
 
@@ -191,15 +191,16 @@ window.addEventListener('hashchange', onRoute);
 window.addEventListener('pagehide', () => { const r = route(); if (who().role === 'driver' && r.page === 'order') Drv.leaveOrder(r.id); });
 
 /* ---------- уведомления из других вкладок ---------- */
-let lastEv = now();
+let evSeen = new Set(db.events.map(e => e.id));   // уже показанные события (по id — часы на телефонах могут отличаться)
 const EV_TITLE = { take: 'Рейс взят', done: 'Рейс выполнен', sos: 'ЭКСТРЕННАЯ ПОЛОМКА', break: 'Поломка', msg: 'Новое сообщение', order: 'Новая заявка', confirm: 'Рейс подтверждён', reject: 'Рейс отклонён', refill: 'Пополнение рейсов', tapin: 'Машина', clock: 'Смена', ack: 'Ответ диспетчера', cancel: 'Отказ от рейса', 'assign-trip': 'Вам назначен рейс', veh: 'Машина' };
 onChange(() => {
   const key = myKey();
   if (key) {
     const r = route();
-    const fresh = db.events.filter(e => e.at > lastEv && e.tab !== TAB_ID && (e.to || []).includes(key));
+    if (Cloud.prime) { Cloud.prime = false; evSeen = new Set(db.events.map(e => e.id)); }   // первая загрузка с сервера — старое не показываем
+    const fresh = db.events.filter(e => !evSeen.has(e.id) && e.tab !== TAB_ID && (e.to || []).includes(key) && now() - e.at < 30 * MIN);
+    db.events.forEach(e => evSeen.add(e.id));
     if (fresh.length) {
-      lastEv = Math.max(...fresh.map(e => e.at));
       const show = fresh.filter(e => !(e.kind === 'msg' && r.page === 'chat' && r.id === e.chatId)).slice(-3);
       show.forEach(e => toast(EV_TITLE[e.kind] || 'Событие', e.text, e.kind === 'sos' ? 'bad' : ['done', 'confirm', 'ack', 'assign-trip'].includes(e.kind) ? 'ok' : ''));
       if (show.length) beep(show.some(e => e.kind === 'sos') ? 'sos' : 'n');

@@ -400,12 +400,12 @@ Disp.settings = () => `
     <div class="sw-row"><div><b>Демо-движение</b><span>Водители-боты берут рейсы, пишут в чат и завершают рейсы — чтобы посмотреть пульт в работе</span></div><button class="switch ${db.settings.bots ? 'on' : ''}" data-a="toggleSet" data-k="bots"><i></i></button></div>
   </div>
   ${IN_APP ? '' : `<div class="card set"><div class="card-h"><b>Как проверить вдвоём</b></div>
-    <p class="muted">Откройте эту же страницу во второй вкладке и войдите водителем или механиком — всё, что делает один, сразу видно у другого. На разных телефонах это заработает, когда подключим сервер.</p>
+    <p class="muted">Данные общие: откройте приложение на другом телефоне (или во второй вкладке) и войдите водителем или механиком — всё, что делает один, через секунду видно у другого.</p>
     <button class="btn soft" data-a="newTab">${ic('link')}Открыть вторую вкладку</button>
   </div>`}
   <div class="card set danger-zone"><div class="card-h"><b>Демо-данные</b></div><p class="muted">Вернуть всё как было: водители, машины, заявки, чаты. Ваши документы и сканы удалятся.</p><button class="btn ghost danger" data-a="resetDemo">${ic('refill')}Сбросить демо</button></div>`;
 A.toggleSet = d => Act.setting(d.k, !db.settings[d.k]);
-A.resetDemo = async () => { if (!await confirmBox('Сбросить демо?', 'Все изменения и загруженные документы будут удалены.', 'Сбросить', 'danger')) return; await FS.clear(); db = seed(); saveRaw(); emit(); toast('Демо сброшено', '', 'ok'); go('#/pult'); };
+A.resetDemo = async () => { if (!await confirmBox('Сбросить демо?', Cloud.on ? 'Все изменения и документы удалятся у всех — на всех телефонах.' : 'Все изменения и загруженные документы будут удалены.', 'Сбросить', 'danger')) return; await FS.clear(); if (Cloud.on) cloudReplace(seed()); else { db = seed(); saveRaw(); emit(); } toast('Демо сброшено', Cloud.on ? 'У всех телефонов' : '', 'ok'); go('#/pult'); };
 A.newTab = () => window.open(location.href.split('#')[0] + '#/login', '_blank');
 
 /* ---------- демо-боты: работают только в одной вкладке диспетчера ---------- */

@@ -1,9 +1,9 @@
 'use strict';
 /* ===================================================================
    ТРАССА HQ — ядро: утилиты, иконки, данные, синхронизация вкладок
-   Демо: данные живут в браузере (localStorage + IndexedDB для файлов).
-   Каждая вкладка — отдельный пользователь, изменения видны во всех
-   вкладках сразу. В рабочей версии этот слой заменяется сервером.
+   Тест: общие данные в Supabase (одна запись с версией + таблица файлов),
+   копия — в localStorage/IndexedDB телефона. ?local — старый режим без сервера.
+   Каждая вкладка/телефон — отдельный пользователь. В рабочей версии — сервер в РФ.
    =================================================================== */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -134,19 +134,96 @@ function saveRaw() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e2) { console.warn('save failed', e2); }
   }
 }
-/* tx: перечитать свежие данные, изменить, сохранить, оповестить все вкладки */
+/* tx: изменить данные, сохранить, оповестить экран и отправить в общую базу */
 function tx(fn) {
-  const fresh = loadRaw(); if (fresh) db = fresh;
+  if (!Cloud.on) { const fresh = loadRaw(); if (fresh) db = fresh; }
   const r = fn(db);
   db.rev = (db.rev || 0) + 1; saveRaw(); emit();
+  if (Cloud.on) { Cloud.pending.push({ fn, r }); cloudPush(); }
   return r;
 }
 window.addEventListener('storage', e => {
-  if (e.key !== KEY) return;
+  if (Cloud.on || e.key !== KEY) return;
   if (!e.newValue) { db = seed(); saveRaw(); }
   else db = JSON.parse(e.newValue);
   emit();
 });
+
+/* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
+   Состояние — один документ с номером версии. Запись проходит, только если
+   версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
+const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
+const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false };
+async function api(path, opt = {}) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(CLOUD.url + '/rest/v1/' + path, Object.assign({ signal: ctl.signal, cache: 'no-store' }, opt, { headers: Object.assign({ apikey: CLOUD.key, 'Content-Type': 'application/json' }, opt.headers || {}) }));
+    const txt = await r.text();
+    if (!r.ok) throw new Error(r.status + ' ' + txt.slice(0, 200));
+    return txt ? JSON.parse(txt) : null;
+  } finally { clearTimeout(t); }
+}
+function setOnline(ok) {
+  if (Cloud.online === ok) return;
+  const was = Cloud.online; Cloud.online = ok;
+  document.documentElement.classList.toggle('offline', !ok);
+  if (typeof toast !== 'function') return;
+  if (!ok) toast('Нет связи с сервером', 'Работайте дальше — изменения отправятся, когда появится интернет', 'bad');
+  else if (was === false) toast('Связь восстановлена', 'Данные снова общие', 'ok');
+}
+/* взять данные с сервера и заново применить свои ещё не отправленные действия */
+function adopt(row) {
+  db = row.data; Cloud.ver = row.ver;
+  for (const p of Cloud.pending) {
+    let r2; try { r2 = p.fn(db); } catch (e) { console.warn('rebase', e); }
+    if (p.r && p.r.ok && r2 && r2.ok === false && typeof toast === 'function') toast('Вас опередили', r2.why || 'Данные обновились', 'bad');
+    p.r = r2;
+  }
+  saveRaw(); emit();
+}
+const getRow = async (cols = 'ver,data') => { const rows = await api(`trassa_state?id=eq.${CLOUD.id}&select=${cols}`); return rows && rows[0] ? rows[0] : null; };
+async function cloudPush() {
+  if (Cloud.busy || !Cloud.ready || !Cloud.pending.length) return;
+  Cloud.busy = true; let retry = false;
+  try {
+    for (let n = 0; Cloud.pending.length && n < 10; n++) {
+      const k = Cloud.pending.length;
+      const v = await api('rpc/trassa_tx', { method: 'POST', body: JSON.stringify({ p_id: CLOUD.id, p_base: Cloud.ver, p_data: db }) });
+      setOnline(true);
+      if (v >= 0) { Cloud.ver = v; Cloud.pending.splice(0, k); continue; }
+      const row = await getRow();   // кто-то успел раньше — перечитать и повторить
+      if (row && row.data) adopt(row); else Cloud.ver = row ? row.ver : 0;
+    }
+  } catch (e) { console.warn('push', e); setOnline(false); retry = true; }
+  finally { Cloud.busy = false; }
+  if (retry) setTimeout(cloudPush, 3000); else if (Cloud.pending.length) setTimeout(cloudPush, 300);
+}
+async function cloudPoll() {
+  if (!Cloud.ready || Cloud.busy || Cloud.pending.length) return;
+  try {
+    const head = await getRow('ver');
+    setOnline(true);
+    if (!head || head.ver === Cloud.ver) return;
+    const row = await getRow();
+    if (Cloud.busy || Cloud.pending.length || !row || !row.data) return;
+    if (row.ver !== Cloud.ver) { db = row.data; Cloud.ver = row.ver; saveRaw(); emit(); }
+  } catch (e) { setOnline(false); }
+}
+async function cloudStart() {
+  try {
+    const row = await getRow();
+    if (row && row.data && row.data.v === 1) { Cloud.prime = true; adopt(row); }
+    else { Cloud.ver = row ? row.ver : 0; Cloud.pending.push({ fn: () => {}, r: undefined }); }   // база пустая — кладём демо-данные
+    Cloud.ready = true; setOnline(true); cloudPush();
+  } catch (e) { console.warn('cloud start', e); setOnline(false); setTimeout(cloudStart, 4000); return; }
+  const loop = async () => { await cloudPoll(); setTimeout(loop, document.hidden ? 15000 : 1500); };
+  setTimeout(loop, 1500);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudPoll(); });
+}
+/* полная замена данных (сброс демо) */
+function cloudReplace(fresh) { return tx(d => { Object.keys(d).forEach(k => delete d[k]); Object.assign(d, JSON.parse(JSON.stringify(fresh))); }); }
+function b64ToBlob(b64, mime) { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime || 'application/octet-stream' }); }
+function blobB64(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); }); }
 
 const D = id => db.drivers.find(d => d.id === id);
 const V = id => db.vehicles.find(v => v.id === id);
@@ -423,16 +500,30 @@ const FS = {
     });
     return this._db;
   },
+  async _put(rec) { const d = await this.open(); await new Promise((res, rej) => { const t = d.transaction('f', 'readwrite'); t.objectStore('f').put(rec); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
   async put(blob, name, mime) {
-    const id = uid('f'), d = await this.open();
-    await new Promise((res, rej) => { const t = d.transaction('f', 'readwrite'); t.objectStore('f').put({ id, blob, name, mime: mime || blob.type, size: blob.size, at: now() }); t.oncomplete = res; t.onerror = () => rej(t.error); });
+    const id = uid('f'), rec = { id, blob, name, mime: mime || blob.type, size: blob.size, at: now() };
+    await this._put(rec);
+    if (Cloud.on) this.up(rec, 0);
     return id;
+  },
+  async up(rec, n) {   // отправить файл в общую базу (с повтором, если нет связи)
+    try { await api('trassa_files', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ id: rec.id, name: rec.name, mime: rec.mime, size: rec.size, b64: await blobB64(rec.blob) }) }); }
+    catch (e) { if (n < 20) setTimeout(() => this.up(rec, n + 1), 4000 * (n + 1)); }
   },
   async get(id) {
     const d = await this.open();
-    return new Promise((res, rej) => { const r = d.transaction('f').objectStore('f').get(id); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); });
+    let rec = await new Promise((res, rej) => { const r = d.transaction('f').objectStore('f').get(id); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); });
+    if (!rec && Cloud.on) {   // файл загружен с другого телефона — скачать
+      for (let n = 0; n < 3 && !rec; n++) {
+        try { const rows = await api(`trassa_files?id=eq.${encodeURIComponent(id)}&select=id,name,mime,size,b64`); const x = rows && rows[0]; if (x) { rec = { id: x.id, blob: b64ToBlob(x.b64, x.mime), name: x.name, mime: x.mime, size: x.size, at: now() }; await this._put(rec); } }
+        catch (e) {}
+        if (!rec) await new Promise(r => setTimeout(r, 2500));
+      }
+    }
+    return rec;
   },
-  async clear() { const d = await this.open(); return new Promise(res => { const t = d.transaction('f', 'readwrite'); t.objectStore('f').clear(); t.oncomplete = res; }); },
+  async clear() { const d = await this.open(); await new Promise(res => { const t = d.transaction('f', 'readwrite'); t.objectStore('f').clear(); t.oncomplete = res; }); if (Cloud.on) { try { await api('rpc/trassa_files_clear', { method: 'POST', body: '{}' }); } catch (e) {} } },
 };
 
 /* ---------- демо-данные ---------- */
@@ -561,6 +652,7 @@ function seed() {
 
 db = loadRaw();
 // демо: данные старше 10 часов создаются заново, чтобы смены и рейсы выглядели «сегодня»
-if (!db || db.v !== 1 || now() - (db.seededAt || 0) > 10 * HOUR) { db = seed(); saveRaw(); }
+if (!db || db.v !== 1 || (!Cloud.on && now() - (db.seededAt || 0) > 10 * HOUR)) { db = seed(); saveRaw(); }
 // старые данные: рейсы «ждёт подтверждения» сразу в работу
 if (db.trips.some(t => t.state === 'pending')) { db.trips.forEach(t => { if (t.state === 'pending') { t.state = 'confirmed'; t.confirmedAt = t.confirmedAt || now(); } }); saveRaw(); }
+if (Cloud.on) cloudStart();
