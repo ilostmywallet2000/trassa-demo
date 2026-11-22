@@ -2,6 +2,8 @@
    ТРАССА HQ — стиль: графит + дорожный жёлтый
    ===================================================================== */
 :root {
+  --sab: max(4px, calc(env(safe-area-inset-bottom) - 16px));
+  --tabh: calc(61px + var(--sab));
   --bg: #f3f2ee; --bg2: #eae8e2; --card: #ffffff; --card2: #f7f6f2; --line: #d9d5cb; --line2: #c8c3b7;
   --text: #111318; --mute: #4f535b; --soft: #7c8089;
   --acc: #ffc21a; --acc-ink: #1d1600; --acc-soft: rgba(255, 186, 0, .16); --acc-text: #8a5800; --free-ring: rgba(205, 140, 0, .8);
@@ -607,7 +609,7 @@ legend .dot { margin-top: 0; }
 .mob-page { flex: 1; padding: 14px 14px 28px; }
 .mob-in.fixed { height: 100vh; height: 100dvh; min-height: 0; }
 .mob-page.full { padding: 0; display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.tabbar.show { display: flex; position: sticky; bottom: 0; width: 100%; z-index: 30; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding: 6px 6px max(6px, env(safe-area-inset-bottom)); }
+.tabbar.show { display: flex; position: sticky; bottom: 0; width: 100%; z-index: 30; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding: 5px 6px var(--sab); }
 .tabbar a, .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 5px; border-radius: 12px; color: var(--mute); font-size: 11.5px; font-weight: 600; position: relative; }
 .tabbar .ic { width: 23px; height: 23px; }
 .tabbar a.on, .tabbar button.on { color: var(--text); }
@@ -888,12 +890,12 @@ body.scan-open { overflow: hidden; }
   .topbar { padding: 0 16px; height: 58px; }
   .topbar h1 { font-size: 18px; }
   .clock { display: none; }
-  .page { padding: 16px 14px 100px; }
+  .page { padding: 16px 14px calc(var(--tabh) + 24px); }
   .main.full { height: calc(100dvh - 0px); }
-  .main.full .page { padding: 0 0 70px; }
+  .main.full .page { padding: 0 0 var(--tabh); }
   .sosbar { margin: 12px 14px 0; flex-wrap: wrap; }
   .sos-a { width: 100%; justify-content: flex-start; }
-  .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding: 6px 6px max(6px, env(safe-area-inset-bottom)); }
+  .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding: 5px 6px var(--sab); }
   .pult { grid-template-columns: minmax(0, 1fr); }
   .pult > .col:first-child { display: block; }
   .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
