@@ -515,10 +515,11 @@ const FS = {
     const d = await this.open();
     let rec = await new Promise((res, rej) => { const r = d.transaction('f').objectStore('f').get(id); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); });
     if (!rec && Cloud.on) {   // файл загружен с другого телефона — скачать
+      if (typeof toast === 'function') toast('Загружаем файл…', 'Он был добавлен с другого телефона');
       for (let n = 0; n < 3 && !rec; n++) {
         try { const rows = await api(`trassa_files?id=eq.${encodeURIComponent(id)}&select=id,name,mime,size,b64`); const x = rows && rows[0]; if (x) { rec = { id: x.id, blob: b64ToBlob(x.b64, x.mime), name: x.name, mime: x.mime, size: x.size, at: now() }; await this._put(rec); } }
         catch (e) {}
-        if (!rec) await new Promise(r => setTimeout(r, 2500));
+        if (!rec && n < 2) await new Promise(r => setTimeout(r, 2000));
       }
     }
     return rec;

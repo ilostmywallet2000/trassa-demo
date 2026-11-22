@@ -345,7 +345,7 @@ async function openDoc(owner, docId) {
   const f = await FS.get(doc.fileId);
   const url = f ? URL.createObjectURL(f.blob) : null;
   const w = who(), canEdit = w.role !== 'driver' || (owner.type === 'driver' && owner.id === w.id);
-  const view = !f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве, где его добавили</b><span>В рабочей версии файлы хранятся на сервере и открываются везде</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}" alt="">`;
+  const view = !f ? `<div class="doc-missing">${ic('file')}<b>Файл ещё не дошёл</b><span>Он отправляется с телефона, где его добавили. Если там плохой интернет — откройте через минуту</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}" alt="">`;
   const m = modal(`
     <div class="doc-view">${view}</div>
     <div class="doc-info">
@@ -468,7 +468,7 @@ A.openTtn = async d => {
   const dd = new Date(t.doneAt || t.takenAt), stamp = `${pad(dd.getDate())}.${pad(dd.getMonth() + 1)}.${dd.getFullYear()} ${pad(dd.getHours())}-${pad(dd.getMinutes())}`;
   const doc = { id: 'ttn', kind: 'ТТН', title: `ТТН №${o.no} от ${stamp}`, fileId: t.ttn.fileId, mime: t.ttn.mime, pages: t.ttn.pages, thumb: t.ttn.thumb, size: t.ttn.size, at: t.doneAt, by: dr.name };
   const f = await FS.get(doc.fileId), url = f ? URL.createObjectURL(f.blob) : null;
-  const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Файл есть только на устройстве водителя</b><span>В рабочей версии ТТН сразу уходит на сервер</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}">`}</div>
+  const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Скан ещё не дошёл</b><span>Он отправляется с телефона водителя. Если там плохой интернет — откройте через минуту</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}">`}</div>
     <div class="row gap wrap doc-acts"><button class="btn acc" id="tShare">${ic('share')}Поделиться</button>${f ? `<a class="btn soft" href="${url}" download="${esc(fileName(doc, dr))}">${ic('download')}Скачать</a><a class="btn soft" href="${url}" target="_blank">${ic('file')}Открыть</a>` : ''}</div>`, { title: doc.title, sub: `${dr.name} · ${t.ttn.pages} стр. · ${m3(t.m3)}`, wide: true });
   m.$('#tShare').onclick = () => shareDoc(doc, dr);
 };
