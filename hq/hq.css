@@ -1134,3 +1134,19 @@ fieldset.rates .seg button.on { background: var(--card); color: var(--text); box
 .when3 > label, .pair > label { min-width: 0; }
 .when3 input[type=time], .when3 input[type=date] { width: 100%; }
 @media (max-width: 760px) { .when3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .when3 > label:first-child { grid-column: 1 / -1; } }
+
+/* ---------- формы на телефоне: ничего не шире экрана, окно не ездит вбок ----------
+   iPhone даёт полям даты/времени свою минимальную ширину, а fieldset по умолчанию растягивается
+   под самое широкое поле — из-за этого форма становилась шире экрана и гуляла влево-вправо. */
+.modal { overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; }
+.modal-b, .form, .form label, .oform, .oform > *, fieldset { min-width: 0; }
+fieldset { min-inline-size: 0; }
+.form input[type=date], .form input[type=time] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; width: 100%; line-height: 42px; text-align: left; }
+.form input::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.form input::-webkit-calendar-picker-indicator { margin-left: 4px; }
+@media (max-width: 760px) { .when3 { gap: 10px; } .when3 input[type=time] { padding: 0 10px 0 12px; font-size: 16px; } }
+/* кнопки «Поломка» / «Закончить день» делят строку поровну и не раздвигают экран */
+.sc-a { min-width: 0; }
+.sc-a > .btn { flex: 1 1 0; min-width: 0; }
+@media (max-width: 360px) { .sc-a > .btn { padding: 0 10px; font-size: 14px; gap: 6px; } }
+html, body { overflow-x: clip; }   /* clip, не hidden: hidden ломает «липкие» панели */
