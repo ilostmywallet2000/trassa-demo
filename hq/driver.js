@@ -70,6 +70,12 @@ Drv.enterOrder = oid => {
   if (mineActive) { Drv.lock[oid] = { ok: true, mine: true }; return; }
   Drv.lock[oid] = Act.openOrder(oid, w.id);
 };
+/* ставка водителя (ставку компании водитель не видит) */
+function drvRate(o) {
+  const R = orderRates(o); if (!R.rd) return '';
+  const est = R.unit === 'm3' ? `≈ ${rub(R.rd * o.m3)} за рейс ${o.m3} м³` : 'сумма — по весу из ТТН';
+  return `<div class="my-rate"><span>${ic('wallet')}</span><div><small>Ваша ставка</small><b>${perUnit(R.rd, R.u)}</b></div><em>${est}</em></div>`;
+}
 Drv.leaveOrder = oid => { const w = who(); if (Drv.lock[oid] && Drv.lock[oid].ok && !Drv.lock[oid].mine) Act.releaseOrder(oid, w.id); delete Drv.lock[oid]; };
 Drv.order = oid => {
   const w = who(), d = D(w.id), o = O(oid); if (!o) return empty('orders', 'Заявка не найдена');
@@ -96,6 +102,7 @@ Drv.order = oid => {
       ${tripCells(o)}
       ${left === 0 ? '<div class="stamp">ПОТРАЧЕНО</div>' : ''}
     </div>
+    ${drvRate(o)}
     <div class="card"><div class="card-h"><b>${esc(o.cargo)}</b>${chip(ic('cube') + o.m3 + ' м³')}</div>
       <div class="kv-grid"><div class="kv"><span>Когда</span><b>${fmtDay(new Date(o.date + 'T12:00').getTime())} с ${esc(o.time || '—')}</b></div><div class="kv"><span>Заказчик</span><b>${esc(o.client)}</b></div></div>
       ${o.note ? `<div class="note">${ic('alert')}${esc(o.note)}</div>` : ''}
@@ -123,6 +130,7 @@ Drv.trip = () => {
       <div class="tc-h"><small>Рейс по заявке №${o.no}</small><b>${esc(o.cargo)} · ${o.m3} м³</b>
         <div class="tc-st">${ic('check')}Рейс ваш — можно ехать</div></div>
     </div>
+    ${drvRate(o)}
     ${routeBlock(o, true)}
     ${o.note ? `<div class="note">${ic('alert')}${esc(o.note)}</div>` : ''}
     <div class="trip-acts">
@@ -139,7 +147,7 @@ A.completeTrip = d => {
   const t = db.trips.find(x => x.id === d.id), o = O(t.orderId), v = V(t.vehicleId);
   let pages = [], thumbs = [], extFile = null;
   const m = modal(`
-    <div class="form"><label>Объём по ТТН, м³<div class="stepper sm"><button type="button" data-s="-1">−</button><input id="ctM" type="number" step="0.5" value="${t.m3 || o.m3}"><button type="button" data-s="1">+</button></div></label></div>
+    <div class="form ${o.unit === 't' ? 'two' : ''}"><label>Объём по ТТН, м³<div class="stepper sm"><button type="button" data-s="-1">−</button><input id="ctM" type="number" step="0.5" value="${t.m3 || o.m3}"><button type="button" data-s="1">+</button></div></label>${o.unit === 't' ? `<label>Вес по ТТН, т<input id="ctT" type="text" inputmode="decimal" autocomplete="off" placeholder="например 27,5"></label>` : ''}</div>
     <div class="aud-h">ТТН</div>
     <div id="ctPrev" class="ttn-prev"></div>
     <div class="row gap wrap"><button class="btn acc grow" id="ctScan">${ic('scan')}Сканировать ТТН</button><button class="btn soft" id="ctUp">${ic('upload')}Файл</button></div>
@@ -164,6 +172,8 @@ A.completeTrip = d => {
     inp.click();
   };
   m.$('#ctGo').onclick = async () => {
+    const tn = m.$('#ctT') ? +String(m.$('#ctT').value).replace(',', '.') : null;
+    if (m.$('#ctT') && !tn) { m.$('#ctT').focus(); return toast('Укажите вес по ТТН', 'По этой заявке оплата за тонну', 'bad'); }
     if (!pages.length && !extFile && !await confirmBox('Без ТТН?', 'Диспетчер увидит, что рейс завершён без накладной.', 'Завершить без ТТН', 'danger')) return;
     const b = m.$('#ctGo'); b.disabled = true; b.textContent = 'Сохраняем…';
     let ttn = null;
@@ -172,7 +182,7 @@ A.completeTrip = d => {
       const fileId = await FS.put(blob, `ТТН ${o.no}`, 'application/pdf');
       ttn = { fileId, pages: pages.length || 1, mime: 'application/pdf', thumb: thumbs[0] || null, size: blob.size };
     }
-    Act.completeTrip(t.id, +m.$('#ctM').value || 0, ttn);
+    Act.completeTrip(t.id, +m.$('#ctM').value || 0, ttn, tn);
     m.close(); toast('Рейс завершён', `${m3(+m.$('#ctM').value || 0)}${ttn ? ' · ТТН ' + ttn.pages + ' стр.' : ''}`, 'ok');
   };
 };

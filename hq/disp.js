@@ -93,7 +93,11 @@ Disp.order = id => {
             <div class="kv"><span>Заказчик</span><b>${esc(o.client)}</b></div>
             <div class="kv"><span>Дата и время</span><b>${new Date(o.date).toLocaleDateString('ru-RU')} с ${esc(o.time || '—')}</b></div>
             <div class="kv"><span>Кубатура выполнено</span><b>${m3(done.reduce((s, t) => s + t.m3, 0))} из ${m3(o.m3 * o.total)}</b></div>
-            ${o.price ? `<div class="kv"><span>Ставка</span><b>${rub(o.price)} / рейс · ${rub(o.price * done.length)} выполнено</b></div>` : ''}
+            ${(() => { const R = orderRates(o); if (!R.rd && !R.rc) return ''; const pay = done.reduce((s, t) => s + tripPay(t), 0), bill = done.reduce((s, t) => s + tripBill(t), 0), q = done.reduce((s, t) => s + tripQty(t, o), 0);
+              return `<div class="kv"><span>Ставка водителя</span><b>${R.rd ? perUnit(R.rd, R.u) : '—'}</b>${done.length && R.rd ? `<small>водителям ${rub(pay)}</small>` : ''}</div>
+              <div class="kv"><span>Ставка компании</span><b>${R.rc ? perUnit(R.rc, R.u) : '—'}</b>${done.length && R.rc ? `<small>к оплате ${rub(bill)}</small>` : ''}</div>
+              ${R.unit === 't' && done.length ? `<div class="kv"><span>Вывезено по весу</span><b>${fmtNum(q)} т</b></div>` : ''}
+              ${R.rd && R.rc && done.length ? `<div class="kv"><span>Разница</span><b class="${bill - pay < 0 ? 'neg' : 'pos'}">${rub(bill - pay)}</b></div>` : ''}`; })()}
           </div>
           ${o.note ? `<div class="note">${ic('alert')}${esc(o.note)}</div>` : ''}
           ${routeBlock(o)}
@@ -177,6 +181,7 @@ function orderForm(o, chatId, title) {
   const clients = [...new Set(db.orders.map(x => x.client))];
   const co = p => p.lat ? `${p.lat}, ${p.lng}` : '';
   const pre = chatId ? [chatId] : [];
+  const R = orderRates(o);
   const m = modal(`<div class="oform">
     <div class="form">
       <div class="two"><label>Заказчик<input id="of-client" list="dl-cl" value="${esc(o.client)}" placeholder="ООО «…»" autofocus></label><label>Груз<input id="of-cargo" list="dl-cargo" value="${esc(o.cargo)}" placeholder="Песок, щебень, грунт…"></label></div>
@@ -192,12 +197,29 @@ function orderForm(o, chatId, title) {
         <label>Координаты<input id="of-tc" value="${esc(co(o.to))}" placeholder="55.751244, 37.618423"></label>
         <div class="two"><label>Контакт<input id="of-tn" value="${esc(o.contactTo.name)}"></label><label>Телефон<input id="of-tp" type="tel" value="${esc(o.contactTo.phone)}"></label></div>
       </fieldset>
-      <div class="two"><label>Ставка за рейс, ₽ <small>для отчёта</small><input id="of-price" type="number" min="0" value="${o.price || ''}" placeholder="необязательно"></label><label>Комментарий для водителей<input id="of-note" value="${esc(o.note)}" placeholder="Пропуск, мойка колёс…"></label></div>
+      <fieldset class="rates"><legend>${ic('wallet')}Ставки</legend>
+        <div class="seg" id="of-unit">${[['m3', 'за м³'], ['t', 'за тонну']].map(([k, t]) => `<button type="button" data-u="${k}" class="${R.unit === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+        <div class="two"><label><span>Ставка водителя, ₽ за <span class="of-u">${R.u}</span></span><input id="of-rd" type="number" min="0" inputmode="decimal" value="${R.rd || ''}" placeholder="0"></label><label><span>Ставка компании, ₽ за <span class="of-u">${R.u}</span></span><input id="of-rc" type="number" min="0" inputmode="decimal" value="${R.rc || ''}" placeholder="0"></label></div>
+        <p class="rate-est" id="of-est"></p>
+      </fieldset>
+      <label>Комментарий для водителей<input id="of-note" value="${esc(o.note)}" placeholder="Пропуск, мойка колёс…"></label>
     </div>
     ${isNew ? `<div class="oform-aud"><div class="aud-title">Кому отправить</div>${audiencePicker(pre)}</div>` : ''}
   </div>
   <div class="row end gap"><button class="btn ghost" data-close>Отмена</button><button class="btn acc" id="ofSave">${ic(isNew ? 'send' : 'check')}${isNew ? 'Создать и отправить' : 'Сохранить'}</button></div>`, { title: title || (isNew ? 'Новая заявка' : `Заявка №${o.no}`), wide: true, full: true });
   bindAudience(m.el);
+  // ставки: единица (м³ / тонна) и подсказка «сколько выйдет за рейс»
+  let unit = R.unit;
+  const est = () => {
+    const rd = +m.$('#of-rd').value || 0, rc = +m.$('#of-rc').value || 0, v = +m.$('#of-m3').value || 0;
+    let t = 'Водитель видит только свою ставку.';
+    if (unit === 'm3' && v && (rd || rc)) t += ` За рейс ${v} м³: водителю ${rub(rd * v)}, компании ${rub(rc * v)}${rd && rc ? `, разница ${rub((rc - rd) * v)}` : ''}.`;
+    else if (unit === 't') t += ' Водитель укажет вес по ТТН, когда завершит рейс.';
+    if (rd && rc && rd > rc) t += ' ⚠ Ставка водителя больше ставки компании.';
+    m.$('#of-est').textContent = t;
+  };
+  m.$('#of-unit').onclick = e => { const b = e.target.closest('[data-u]'); if (!b) return; unit = b.dataset.u; $$('#of-unit button', m.el).forEach(x => x.classList.toggle('on', x === b)); $$('.of-u', m.el).forEach(x => x.textContent = UNIT[unit]); est(); };
+  ['of-rd', 'of-rc', 'of-m3'].forEach(id => m.$('#' + id).addEventListener('input', est)); est();
   m.$('#ofSave').onclick = () => {
     const g = id => m.$('#of-' + id).value.trim();
     const fc = parseCoords(g('fc')), tc = parseCoords(g('tc'));
@@ -207,7 +229,7 @@ function orderForm(o, chatId, title) {
     if (errs.length) return toast('Заполните: ' + errs.join(', '), 'Координаты: два числа через запятую', 'bad');
     const targets = isNew ? readAudience(m.el) : [];
     if (isNew && !targets.length) return toast('Выберите, кому отправить', 'Чат «Все водители», группу или отдельных водителей', 'bad');
-    const data = { id: isNew ? undefined : o.id, client: g('client') || 'Без заказчика', cargo: g('cargo'), total: Math.max(1, +g('total') || 1), m3: +g('m3') || 20, date: g('date') || isoDay(now()), time: g('time'), price: +g('price') || 0, note: g('note'),
+    const data = { id: isNew ? undefined : o.id, client: g('client') || 'Без заказчика', cargo: g('cargo'), total: Math.max(1, +g('total') || 1), m3: +g('m3') || 20, date: g('date') || isoDay(now()), time: g('time'), price: 0, unit, rateDrv: +g('rd') || 0, rateCo: +g('rc') || 0, note: g('note'),
       from: { addr: g('fa'), lat: fc[0], lng: fc[1] }, to: { addr: g('ta'), lat: tc[0], lng: tc[1] }, contactFrom: { name: g('fn'), phone: g('fp') }, contactTo: { name: g('tn'), phone: g('tp') } };
     if (isNew) delete data.id;
     if (!isNew && data.total < orderUsed(o)) return toast('Рейсов не может быть меньше уже взятых', `Взято: ${orderUsed(o)}`, 'bad');
@@ -360,20 +382,20 @@ Disp.reports = () => {
   const p = UI.filter.rep || '7', t0 = startOfDay(now());
   const from = p === '1' ? t0 : t0 - (+p - 1) * DAY;
   const ts = db.trips.filter(t => t.state === 'done' && t.doneAt >= from);
-  const sum = ts.reduce((s, t) => s + t.m3, 0), money = ts.reduce((s, t) => s + ((O(t.orderId) || {}).price || 0), 0);
+  const sum = ts.reduce((s, t) => s + t.m3, 0), money = ts.reduce((s, t) => s + tripBill(t), 0), pay = ts.reduce((s, t) => s + tripPay(t), 0);
   const hours = id => db.shifts.filter(s => (!id || s.driverId === id)).reduce((s, x) => s + Math.max(0, Math.min(x.end || now(), now()) - Math.max(x.start, from)), 0);
   const days = []; for (let t = from; t <= t0; t += DAY) days.push(t);
   const byDay = days.map(d => { const x = ts.filter(t => t.doneAt >= d && t.doneAt < d + DAY); return { d, n: x.length, v: x.reduce((s, t) => s + t.m3, 0) }; });
   const maxV = Math.max(1, ...byDay.map(x => x.v));
   const byDrv = db.drivers.map(d => { const x = ts.filter(t => t.driverId === d.id); return { d, n: x.length, v: x.reduce((s, t) => s + t.m3, 0), h: hours(d.id), b: db.breakdowns.filter(b => b.driverId === d.id && b.at >= from).length }; }).sort((a, b) => b.v - a.v);
-  const clients = {}; ts.forEach(t => { const o = O(t.orderId); const c = clients[o.client] = clients[o.client] || { n: 0, v: 0, r: 0 }; c.n++; c.v += t.m3; c.r += o.price || 0; });
+  const clients = {}; ts.forEach(t => { const o = O(t.orderId); const c = clients[o.client] = clients[o.client] || { n: 0, v: 0, r: 0 }; c.n++; c.v += t.m3; c.r += tripBill(t); });
   const cargo = {}; ts.forEach(t => { const o = O(t.orderId); cargo[o.cargo] = (cargo[o.cargo] || 0) + t.m3; });
   UI.report = { byDrv, clients, from };
   return `<div class="toolbar">
       <div class="seg">${[['1', 'Сегодня'], ['7', '7 дней'], ['30', '30 дней']].map(([k, t]) => `<button class="${p === k ? 'on' : ''}" data-a="filter" data-k="rep" data-v="${k}">${t}</button>`).join('')}</div>
       <span class="grow"></span><button class="btn soft" data-a="exportCsv">${ic('download')}Скачать для Excel</button>
     </div>
-    <div class="kpis">${kpi('Рейсов', ts.length)}${kpi('Кубатура', m3(sum))}${kpi('По ставкам', money ? rub(money) : '—')}${kpi('Часов на линии', Math.round(hours() / HOUR).toLocaleString('ru-RU'))}</div>
+    <div class="kpis">${kpi('Рейсов', ts.length)}${kpi('Кубатура', m3(sum))}${kpi('Выручка', money ? rub(money) : '—', pay ? 'водителям ' + rub(pay) : '')}${kpi('Часов на линии', Math.round(hours() / HOUR).toLocaleString('ru-RU'))}</div>
     <div class="rep">
       <div class="card"><div class="card-h"><b>Кубатура по дням</b><span class="muted sm">столбик — м³, число — рейсы</span></div>
         <div class="bars">${byDay.map(x => `<div class="bcol" title="${fmtDay(x.d)}: ${x.n} рейсов, ${m3(x.v)}"><span class="bv">${x.v ? fmtNum(x.v) : ''}</span><div class="bb"><i style="height:${(x.v / maxV * 100).toFixed(1)}%"></i></div><b>${x.n}</b><small>${byDay.length > 10 ? new Date(x.d).getDate() : WD[new Date(x.d).getDay()] + ' ' + new Date(x.d).getDate()}</small></div>`).join('')}</div>
@@ -388,7 +410,7 @@ Disp.reports = () => {
 A.exportCsv = () => {
   const r = UI.report; if (!r) return;
   const rows = [['Водитель', 'Рейсов', 'Кубатура м3', 'Часов на линии', 'Поломок']].concat(r.byDrv.map(x => [x.d.name, x.n, x.v, (x.h / HOUR).toFixed(1).replace('.', ','), x.b]));
-  rows.push([]); rows.push(['Заказчик', 'Рейсов', 'Кубатура м3', 'Сумма руб']);
+  rows.push([]); rows.push(['Заказчик', 'Рейсов', 'Кубатура м3', 'Выручка руб']);
   Object.entries(r.clients).forEach(([k, c]) => rows.push([k, c.n, c.v, c.r]));
   const csv = '﻿' + rows.map(r => r.map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
   saveBlob(new Blob([csv], { type: 'text/csv' }), `Трасса-отчёт-${isoDay(r.from)}—${isoDay(now())}.csv`);

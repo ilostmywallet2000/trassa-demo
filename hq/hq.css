@@ -1111,3 +1111,20 @@ a.sd-bar:hover .sd-bl b, a.sd-row:hover b, .sd-m:hover b { color: var(--acc-text
 #upd span { font-size: 12.5px; color: var(--mute); line-height: 1.35; }
 #upd .btn { flex: none; text-decoration: none; }
 .app-ver { text-align: center; font-size: 12.5px; color: var(--soft); margin: 18px 0 6px; }
+
+/* ---------- ставки ---------- */
+fieldset.rates legend .ic { width: 15px; height: 15px; color: var(--acc-text); }
+fieldset.rates .seg { margin-bottom: 4px; }
+fieldset.rates .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.rate-est { margin: 2px 0 0; font-size: 13px; color: var(--mute); line-height: 1.45; }
+.my-rate { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: var(--acc-soft); border: 1px solid var(--free-ring); margin-bottom: 12px; }
+.my-rate > span { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--acc); color: var(--acc-ink); }
+.my-rate > span .ic { width: 20px; height: 20px; }
+.my-rate > div { display: flex; flex-direction: column; min-width: 0; }
+.my-rate small { font-size: 12px; font-weight: 600; color: var(--acc-text); text-transform: uppercase; letter-spacing: .04em; }
+.my-rate b { font-size: 19px; font-weight: 700; color: var(--text); }
+.my-rate em { margin-left: auto; font-style: normal; font-size: 13px; color: var(--mute); text-align: right; }
+.oc-rate { color: var(--acc-text); font-weight: 700; }
+.kv small { display: block; font-size: 12px; color: var(--mute); margin-top: 2px; }
+.kv b.pos { color: var(--ok); } .kv b.neg { color: var(--bad); }
+@media (max-width: 420px) { .my-rate { flex-wrap: wrap; } .my-rate em { margin-left: 52px; text-align: left; width: 100%; } }

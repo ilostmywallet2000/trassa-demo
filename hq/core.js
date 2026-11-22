@@ -38,6 +38,7 @@ const shortName = n => { const p = String(n || '').split(/\s+/); return p.length
 
 /* ---------- иконки (линейные, 24×24) ---------- */
 const IC = {
+  wallet: '<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="3.5" y="7.5" width="17" height="12" rx="2.5"/><path d="M20.5 11.5h-4a2 2 0 0 0 0 4h4"/><circle cx="16.6" cy="13.5" r=".6"/>',
   pult: '<rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/>',
   orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.8h6V4M9 10h6M9 14h6M9 18h3"/>',
   chat: '<path d="M21 12a8.5 8.5 0 0 1-12.4 7.5L3.5 21l1.4-4.7A8.5 8.5 0 1 1 21 12z"/>',
@@ -152,7 +153,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
-const APP_VER = '0.4.4';
+const APP_VER = '0.4.5';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -243,6 +244,17 @@ const orderDone = o => db.trips.filter(t => t.orderId === o.id && t.state === 'd
 const orderLeft = o => Math.max(0, o.total - orderUsed(o));
 const isSpent = o => o.status !== 'closed' && orderLeft(o) === 0;
 const tripM3 = t => t.state === 'done' ? (t.m3 || 0) : 0;
+/* ставки: за м³ или за тонну; водитель видит только свою. Старые заявки — «за рейс» (price) → пересчёт на м³ */
+const UNIT = { m3: 'м³', t: 'т' };
+function orderRates(o) {
+  const unit = o.unit === 't' ? 't' : 'm3';
+  let rd = o.rateDrv; if (rd == null && o.price) rd = Math.round(o.price / (o.m3 || 1));
+  return { unit, u: UNIT[unit], rd: +rd || 0, rc: +o.rateCo || 0 };
+}
+const tripQty = (t, o) => (o || O(t.orderId) || {}).unit === 't' ? (+t.tn || 0) : (+t.m3 || 0);   // м³ или тонны по ТТН
+const tripPay = t => { const o = O(t.orderId); return o ? tripQty(t, o) * orderRates(o).rd : 0; };    // водителю
+const tripBill = t => { const o = O(t.orderId); return o ? tripQty(t, o) * orderRates(o).rc : 0; };   // компании от заказчика
+const perUnit = (n, u) => `${rub(n)} за ${u === 'т' ? 'тонну' : 'м³'}`;
 function viewers(o, except) {
   const L = (db.locks || {})[o.id] || {}, t = now();
   return Object.keys(L).filter(k => L[k] > t && k !== except);
@@ -391,10 +403,10 @@ const Act = {
       ev('cancel', `${d.name} отказался от рейса по заявке №${o.no} — рейс вернулся в заявку`, ['disp']);
     });
   },
-  completeTrip(tid, m3v, ttn) {
+  completeTrip(tid, m3v, ttn, tn) {
     return tx(db => {
       const t = db.trips.find(x => x.id === tid); if (!t) return;
-      t.state = 'done'; t.doneAt = now(); t.m3 = +m3v || 0; t.ttn = ttn || null;
+      t.state = 'done'; t.doneAt = now(); t.m3 = +m3v || 0; t.ttn = ttn || null; if (tn != null) t.tn = +tn || 0;
       if (!t.confirmedAt) t.confirmedAt = now();
       const o = O(t.orderId), d = D(t.driverId);
       ev('done', `${d.name} выполнил рейс №${o.no} · ${m3(t.m3)}${ttn ? ' · ТТН ' + ttn.pages + ' стр.' : ' · без ТТН'}`, ['disp'], { tripId: t.id });
@@ -618,12 +630,16 @@ function seed() {
   const o104 = mk(104, { client: CL[4], cargo: 'Асфальтовая крошка', from: PL.asfalt, to: PL.park, contactFrom: { name: 'АБЗ, отгрузка', phone: '+7 495 350-17-26' }, contactTo: { name: 'Ирина, прораб', phone: '+7 926 650-09-31' }, m3: 20, total: 3, price: 6900, time: '10:00', note: 'Только 3 рейса — откроют максимум 3 водителя одновременно.', chats: ['c-all'] });
   const o100 = mk(100, { client: CL[2], cargo: 'ПГС', from: PL.ram, to: PL.sever, contactFrom: { name: 'Диспетчер ГОКа', phone: '+7 496 463-22-10' }, contactTo: { name: 'Олег Петрович, прораб', phone: '+7 925 301-44-90' }, m3: 22, total: 5, price: 7600, time: '06:30', created: T - 5 * HOUR, chats: ['c-all'], spentAt: T - 2 * HOUR });
   orders.push(o100, o101, o102, o103, o104);
+  // ставки за м³ (водителю / компании); щебень — за тонну
+  orders.forEach(o => { if (o.price) { o.unit = 'm3'; o.rateDrv = Math.round(o.price / o.m3 / 10) * 10; o.rateCo = Math.round(o.rateDrv * 1.35 / 10) * 10; o.price = 0; } });
+  Object.assign(o102, { unit: 't', rateDrv: 260, rateCo: 350 });
   const tr = (o, di, state, hAgo, by) => trips.push({ id: uid('t'), orderId: o.id, driverId: 'd' + di, vehicleId: 'v' + di, state, takenAt: T - hAgo * HOUR, confirmedAt: state !== 'pending' ? T - hAgo * HOUR + 4 * MIN : null, doneAt: state === 'done' ? T - (hAgo - 1.4) * HOUR : null, m3: o.m3, ttn: null, by: by || 'driver' });
   [[1, 4], [2, 4.2], [3, 3.9], [4, 3.6], [6, 3.4]].forEach(([d, h]) => tr(o100, d, 'done', h));
   tr(o101, 2, 'done', 2.6); tr(o101, 3, 'done', 2.4); tr(o101, 1, 'done', 2.2);
   tr(o101, 4, 'confirmed', .7); tr(o101, 5, 'confirmed', .12);
   tr(o102, 7, 'done', 2.5); tr(o102, 8, 'done', 2.1); tr(o102, 6, 'confirmed', .5);
   tr(o102, 12, 'confirmed', .05);
+  trips.forEach(t => { if (t.orderId === o102.id && t.state === 'done') t.tn = 26 + Math.round(Math.random() * 30) / 10; });
 
   const chats = [
     { id: 'c-all', kind: 'all', title: 'Все водители' },

@@ -128,7 +128,7 @@ function orderCard(o, ctx = {}) {
     <div class="oc-route"><div><i class="dot a"></i><span>${esc(o.from.addr)}</span></div><div><i class="dot b"></i><span>${esc(o.to.addr)}</span></div></div>
     <div class="oc-count">
       <div class="oc-left"><b>${left}</b><span>${closed ? 'закрыта' : 'осталось<br>из ' + o.total}</span></div>
-      <div class="oc-cells">${tripCells(o)}<div class="oc-meta">${ic('cube')}${o.m3} м³/рейс${vw.length && !spent ? ` · <span class="eye">${ic('eye')}${vw.length} ${plural(vw.length, 'смотрит', 'смотрят', 'смотрят')}</span>` : ''}${mine ? ` · <span class="mine">ваших: ${mine}</span>` : ''}</div></div>
+      <div class="oc-cells">${tripCells(o)}<div class="oc-meta">${ic('cube')}${o.m3} м³/рейс${ctx.did && orderRates(o).rd ? ` · <b class="oc-rate">${rub(orderRates(o).rd)}/${orderRates(o).u}</b>` : ''}${vw.length && !spent ? ` · <span class="eye">${ic('eye')}${vw.length} ${plural(vw.length, 'смотрит', 'смотрят', 'смотрят')}</span>` : ''}${mine ? ` · <span class="mine">ваших: ${mine}</span>` : ''}</div></div>
     </div>
     ${spent ? '<div class="stamp">ПОТРАЧЕНО</div>' : ''}
   </a>`;
