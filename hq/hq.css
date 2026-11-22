@@ -2,9 +2,9 @@
    ТРАССА HQ — стиль: графит + дорожный жёлтый
    ===================================================================== */
 :root {
-  --bg: #f3f2ee; --bg2: #eae8e2; --card: #ffffff; --card2: #f7f6f2; --line: #e2dfd7; --line2: #d4d0c6;
-  --text: #15171c; --mute: #686c75; --soft: #9a9ea6;
-  --acc: #ffc21a; --acc-ink: #1d1600; --acc-soft: rgba(255, 186, 0, .16); --acc-text: #a36d00;
+  --bg: #f3f2ee; --bg2: #eae8e2; --card: #ffffff; --card2: #f7f6f2; --line: #d9d5cb; --line2: #c8c3b7;
+  --text: #111318; --mute: #4f535b; --soft: #7c8089;
+  --acc: #ffc21a; --acc-ink: #1d1600; --acc-soft: rgba(255, 186, 0, .16); --acc-text: #8a5800; --free-ring: rgba(205, 140, 0, .8);
   --ok: #16a05a; --ok-soft: rgba(22, 160, 90, .12);
   --warn: #ec7f0b; --warn-soft: rgba(236, 127, 11, .13);
   --bad: #e5383b; --bad-soft: rgba(229, 56, 59, .11);
@@ -19,14 +19,14 @@
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #0c0d10; --bg2: #111317; --card: #16181d; --card2: #1c1f25; --line: #23262d; --line2: #2f333b;
-  --text: #eef0f3; --mute: #9298a3; --soft: #626875;
-  --acc: #ffc21a; --acc-ink: #1d1600; --acc-soft: rgba(255, 194, 26, .13); --acc-text: #ffcf4d;
+  --bg: #0a0b0e; --bg2: #101216; --card: #181b21; --card2: #20242b; --line: #2e323b; --line2: #3c414b;
+  --text: #f6f7f9; --mute: #b4b9c3; --soft: #868c98;
+  --acc: #ffc21a; --acc-ink: #1d1600; --acc-soft: rgba(255, 194, 26, .13); --acc-text: #ffcf4d; --free-ring: rgba(255, 194, 26, .6);
   --ok: #2fd07b; --ok-soft: rgba(47, 208, 123, .13);
   --warn: #ff9a2e; --warn-soft: rgba(255, 154, 46, .14);
   --bad: #ff4d4f; --bad-soft: rgba(255, 77, 79, .14);
   --info: #5b9dff; --info-soft: rgba(91, 157, 255, .14);
-  --off: #7c828d; --off-soft: rgba(124, 130, 141, .16);
+  --off: #959ba6; --off-soft: rgba(149, 155, 166, .18);
   --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 8px 28px rgba(0, 0, 0, .35);
   --shadow-lg: 0 30px 90px rgba(0, 0, 0, .6);
   color-scheme: dark;
@@ -265,10 +265,12 @@ p { margin: 0 0 12px; }
 .oc-meta .eye { color: var(--info); display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
 .oc-meta .mine { color: var(--ok); font-weight: 600; }
 .cells { display: flex; flex-wrap: wrap; gap: 4px; }
-.cells i { width: 18px; height: 10px; border-radius: 3px; background: var(--line); }
+.cells i { width: 18px; height: 10px; border-radius: 3px; background: var(--acc-soft); box-shadow: inset 0 0 0 1.5px var(--free-ring); }   /* свободный рейс */
 .cells i.ok, .legend i.ok, .bar i.ok { background: var(--ok); }
 .cells i.info, .legend i.info, .bar i.info { background: var(--info); }
 .cells i.acc, .legend i.acc, .bar i.acc { background: var(--acc); }
+.cells i.ok, .cells i.info, .cells i.acc { box-shadow: none; }
+.composer textarea { min-width: 0; }
 .bar { display: flex; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
 .ocard.compact { padding: 14px; }
 .ocard.compact .oc-left b { font-size: 28px; }
@@ -295,7 +297,8 @@ p { margin: 0 0 12px; }
 .big-count .stamp { font-size: 34px; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 13px; color: var(--mute); }
 .legend span { display: flex; align-items: center; gap: 6px; }
-.legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--line); }
+.legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--acc-soft); box-shadow: inset 0 0 0 1.5px var(--free-ring); }
+.legend i.ok, .legend i.info, .legend i.acc { box-shadow: none; }
 .route { display: flex; flex-direction: column; margin-top: 14px; }
 .rt { display: grid; grid-template-columns: 22px 1fr; gap: 10px; }
 .rt-dot { display: flex; flex-direction: column; align-items: center; }
@@ -996,3 +999,9 @@ body.scan-open { overflow: hidden; }
 .sc-loupe i::before, .sc-loupe i::after { content: ''; position: absolute; background: #ffc21a; }
 .sc-loupe i::before { left: 12px; top: 0; width: 2px; height: 26px; }
 .sc-loupe i::after { top: 12px; left: 0; height: 2px; width: 26px; }
+
+/* iPhone увеличивает страницу, если шрифт в поле ввода меньше 16px — на телефонах всегда 16px */
+@media (max-width: 900px), (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
