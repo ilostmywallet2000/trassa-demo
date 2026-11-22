@@ -33,7 +33,7 @@ function loginView() {
         <li>${ic('link')}<span><b>Механик и автопарк</b>Посадка водителя на машину, ремонт, папка документов.</span></li>
       </ul>
       <div class="lg-road"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <small class="lg-foot">Демо-версия · Vitrina Studio · ${new Date().getFullYear()}</small>
+      <small class="lg-foot">Демо-версия ${APP_VER} · Vitrina Studio · ${new Date().getFullYear()}</small>
     </section>
     <section class="lg-panel" data-keep="login">
       <h2>Войти как</h2>
@@ -250,6 +250,27 @@ window.appBack = () => {
   if (w.role && r.page && r.page !== HOME[w.role]) { history.back(); return true; }
   return false;
 };
+
+/* проверка новой версии: старое приложение на телефоне не видит новых функций — подсказываем обновиться */
+const SITE = 'https://ilostmywallet2000.github.io/trassa-demo/hq/';
+const verNum = v => String(v || '0').split('.').reduce((a, x) => a * 1000 + (+x || 0), 0);
+async function checkUpdate() {
+  if (document.getElementById('upd')) return;
+  try {
+    const r = await fetch(SITE + 'version.json?t=' + Date.now(), { cache: 'no-store' });
+    const j = await r.json();
+    if (verNum(j.ver) <= verNum(APP_VER)) return;
+    const b = document.createElement('div'); b.id = 'upd';
+    b.innerHTML = `<i>${ic('bell')}</i><div><b>Вышла новая версия ${esc(j.ver)}</b><span>${IN_APP ? 'Скачайте и установите поверх — данные не пропадут' : 'Нажмите «Обновить» — займёт пару секунд'}</span></div>`
+      + (IN_APP ? `<a class="btn acc sm" href="${SITE}install.html">Скачать</a>` : `<button class="btn acc sm" id="upd-go">Обновить</button>`);
+    document.body.appendChild(b);
+    const go = document.getElementById('upd-go');
+    if (go) go.onclick = async () => { try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(x => x.update())); } catch (e) {} location.reload(); };
+  } catch (e) { /* нет интернета — проверим позже */ }
+}
+setTimeout(checkUpdate, 3000);
+setInterval(checkUpdate, 15 * 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 
 applyTheme();
 if (!location.hash) location.hash = who().role ? '#/' + HOME[who().role] : '#/login';

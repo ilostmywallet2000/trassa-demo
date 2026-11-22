@@ -152,6 +152,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
+const APP_VER = '0.4.2';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -442,7 +443,7 @@ const Act = {
       let c = C(chatId);
       if (!c && chatId.startsWith('dm-') && D(chatId.slice(3))) c = ensureDm(chatId.slice(3));
       if (!c) return;
-      msg(chatId, from, text, extra);
+      msg(c.id, from, text, extra);
       const to = from === 'disp' ? chatMembers(c) : ['disp', ...chatMembers(c).filter(x => x !== from)];
       const who = from === 'disp' ? 'Диспетчер' : (D(from) || {}).name;
       ev('msg', `${who}${c.kind === 'dm' ? '' : ' в «' + chatTitle(c) + '»'}: ${text.slice(0, 80)}`, to, { chatId });

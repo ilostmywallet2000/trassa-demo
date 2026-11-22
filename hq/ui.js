@@ -186,6 +186,8 @@ function chatList(key, activeId) {
 function chatView(key, chatId, opts = {}) {
   let c = C(chatId);
   if (!c && chatId === 'dm-' + key) c = { id: chatId, kind: 'dm', driverId: key, title: '', virtual: true };
+  // диспетчер пишет водителю впервые — чата ещё нет: открываем пустой, он создастся с первым сообщением
+  if (!c && key === 'disp' && chatId.startsWith('dm-') && D(chatId.slice(3))) c = dmChat(chatId.slice(3)) || { id: chatId, kind: 'dm', driverId: chatId.slice(3), title: '', virtual: true };
   if (!c) return empty('chat', 'Чат не найден');
   const ms = db.messages.filter(m => m.chatId === c.id);
   const title = key !== 'disp' && c.kind === 'dm' ? 'Диспетчер' : chatTitle(c);

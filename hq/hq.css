@@ -384,11 +384,11 @@ p { margin: 0 0 12px; }
 .tapin .ti-d.none .ic { width: 28px; height: 28px; }
 
 /* ---------- чаты ---------- */
-.chats { display: grid; grid-template-columns: 340px 1fr; height: 100%; min-height: 0; }
+.chats { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100%; min-height: 0; }
 .chats-l { border-right: 1px solid var(--line); overflow-y: auto; background: var(--bg2); }
 .cl-h { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
 .cl-h b { font-size: 16px; }
-.chats-r { min-height: 0; display: flex; flex-direction: column; }
+.chats-r { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .clist { display: flex; flex-direction: column; padding: 4px 8px 16px; }
 .citem { display: flex; gap: 11px; padding: 10px; border-radius: 14px; align-items: center; transition: background .12s; }
 .citem:hover { background: var(--card); }
@@ -401,7 +401,7 @@ p { margin: 0 0 12px; }
 .ci-s span { flex: 1; min-width: 0; font-size: 13px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci-s em { font-style: normal; min-width: 21px; height: 21px; border-radius: 99px; background: var(--acc); color: var(--acc-ink); font-size: 12px; font-weight: 700; display: grid; place-items: center; padding: 0 6px; }
 .ci-s small { font-size: 12px; color: var(--soft); flex: none; }
-.chat { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.chat { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
 .chat-h { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--card); }
 .ch-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .ch-t b { font-size: 15.5px; }
@@ -898,7 +898,7 @@ body.scan-open { overflow: hidden; }
   .pult > .col:first-child { display: block; }
   .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
   .kpi b { font-size: 22px; }
-  .chats { grid-template-columns: 1fr; }
+  .chats { grid-template-columns: minmax(0, 1fr); }
   .chats.has .chats-l { display: none; }
   .chats:not(.has) .chats-r { display: none; }
   .msg { max-width: 90%; }
@@ -1100,3 +1100,12 @@ a.sd-bar:hover .sd-bl b, a.sd-row:hover b, .sd-m:hover b { color: var(--acc-text
 .qadd input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--card2); border-radius: 12px; padding: 9px 12px; color: var(--text); font: inherit; outline: none; }
 .qadd input:focus { border-color: var(--acc); }
 @media (max-width: 760px) { .qedit { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- новая версия ---------- */
+#upd { position: fixed; z-index: 90; left: 50%; transform: translateX(-50%); top: max(12px, env(safe-area-inset-top)); width: min(520px, calc(100% - 24px)); display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--free-ring); box-shadow: 0 14px 40px rgba(0, 0, 0, .28); }
+#upd > i { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--acc-soft); color: var(--acc-text); }
+#upd > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#upd b { font-size: 14.5px; }
+#upd span { font-size: 12.5px; color: var(--mute); line-height: 1.35; }
+#upd .btn { flex: none; text-decoration: none; }
+.app-ver { text-align: center; font-size: 12.5px; color: var(--soft); margin: 18px 0 6px; }

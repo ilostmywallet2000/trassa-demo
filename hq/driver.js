@@ -188,5 +188,6 @@ Drv.me = () => {
     <div class="mini-stats"><button data-a="stat" data-k="drv-7d" data-id="${d.id}"><b>${week.length}</b><span>рейсов за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-m3w" data-id="${d.id}"><b>${fmtNum(week.reduce((s, t) => s + t.m3, 0))}</b><span>м³ за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-mydocs" data-id="${d.id}"><b>${d.docs.length}</b><span>документов</span>${ic('right')}</button></div>
     <div class="card"><div class="card-h"><b>Моя машина</b></div>${v ? `<div class="my-veh">${plate(v, 'lg')}<div><b>${esc(v.model)}</b><span>${esc(v.axle)} · ${v.volume} м³</span>${vehChip(v)}</div></div>` : '<p class="muted">Машина не закреплена. Механик назначит её в своём приложении.</p>'}</div>
     <div class="card" id="myDocs"><div class="card-h"><b>Мои документы</b></div>${docGrid({ type: 'driver', id: d.id }, d.docs, true)}</div>
-    ${v && v.docs.length ? `<div class="card"><div class="card-h"><b>Документы машины</b></div>${docGrid({ type: 'vehicle', id: v.id }, v.docs, false)}</div>` : ''}`;
+    ${v && v.docs.length ? `<div class="card"><div class="card-h"><b>Документы машины</b></div>${docGrid({ type: 'vehicle', id: v.id }, v.docs, false)}</div>` : ''}
+    <p class="app-ver">Трасса HQ ${APP_VER} · ${!Cloud.on ? 'данные только на этом телефоне' : Cloud.online === false ? 'нет связи с базой' : 'связь с базой есть'}</p>`;
 };
