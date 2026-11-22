@@ -50,7 +50,7 @@ const Scanner = (() => {
     const msg = $('#scMsg'), v = $('#scVideo');
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('камера недоступна в этом окне');
-      try { S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } }); }
+      try { S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: window.ImageCapture ? 1920 : 2560 }, height: { ideal: window.ImageCapture ? 1440 : 1920 } } }); }
       catch (e1) {   // веб-камеры ноутбуков иногда не принимают высокое разрешение — пробуем самый простой запрос
         if (e1 && (e1.name === 'NotAllowedError' || e1.name === 'SecurityError')) throw e1;
         S.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
@@ -124,13 +124,42 @@ const Scanner = (() => {
     };
     loop();
   }
-  function capture(v) {
-    if (!v.videoWidth) return;
+  /* снимок: на Android — настоящее фото с камеры (12 Мп), иначе — кадр из видео */
+  async function capture(v) {
+    if (!v.videoWidth || S.shooting) return;
+    S.shooting = true;
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
     const q = S.liveQuad && Date.now() - (S.liveAt || 0) < 2000 ? S.liveQuad.map(p => p.slice()) : null;
+    stopLive();
     const f = $('#scFlash'); if (f) { f.classList.add('go'); }
     if (navigator.vibrate) navigator.vibrate(30);
-    stopCam(); setTimeout(() => crop(c, q), 120);
+    let photo = null;
+    const track = S.stream && S.stream.getVideoTracks()[0];
+    if (window.ImageCapture && track) {
+      hint('Снимаем…', 'ok');
+      try {
+        const icap = new ImageCapture(track);
+        const caps = await Promise.race([icap.getPhotoCapabilities(), new Promise(r => setTimeout(r, 1500))]).catch(() => null);
+        const opt = caps && caps.imageWidth && caps.imageWidth.max ? { imageWidth: Math.min(caps.imageWidth.max, 4032) } : {};
+        const blob = await Promise.race([icap.takePhoto(opt), new Promise((r, j) => setTimeout(() => j(new Error('долго')), 4000))]);
+        const bmp = await createImageBitmap(blob);
+        // фото должно быть в той же ориентации, что и видео — иначе берём кадр
+        if ((bmp.width > bmp.height) === (c.width > c.height) && bmp.width > c.width) {
+          const k = Math.min(1, 3400 / Math.max(bmp.width, bmp.height));
+          photo = document.createElement('canvas'); photo.width = Math.round(bmp.width * k); photo.height = Math.round(bmp.height * k);
+          photo.getContext('2d').drawImage(bmp, 0, 0, photo.width, photo.height);
+        }
+        bmp.close && bmp.close();
+      } catch (e) { photo = null; }
+    }
+    S.shooting = false;
+    stopCam();
+    let preset = q;
+    if (photo) {   // рамку из видео переносим на фото, если пропорции совпадают
+      const sx = photo.width / c.width, sy = photo.height / c.height;
+      preset = q && Math.abs(sx / sy - 1) < .03 ? q.map(p => [p[0] * sx, p[1] * sy]) : null;
+    }
+    setTimeout(() => crop(photo || c, preset), photo ? 0 : 120);
   }
   function nextFromQueue() {
     const f = S.queue.shift(); if (!f) return;
@@ -146,12 +175,15 @@ const Scanner = (() => {
 
   /* шаг 2: углы */
   const defCorners = c => { const w = c.width, h = c.height, m = .05; return [[w * m, h * m], [w * (1 - m), h * m], [w * (1 - m), h * (1 - m)], [w * m, h * (1 - m)]]; };
+  /* чуть внутрь листа, чтобы на скан не попадала кромка фона */
+  function inset(q, f = .012) { const cx = q.reduce((a, p) => a + p[0], 0) / 4, cy = q.reduce((a, p) => a + p[1], 0) / 4; return q.map(p => [p[0] + (cx - p[0]) * f, p[1] + (cy - p[1]) * f]); }
   function crop(canvas, preset) {
     const W = canvas.width, H = canvas.height;
     S.src = canvas; S.touched = false;
     const fine = Edge.ready() ? Edge.detectIn(canvas, W, H, 900) : null;
-    S.corners = fine || preset || detect(canvas) || defCorners(canvas);
-    if (!Edge.ready()) Edge.load().then(ok => { if (!ok || S.src !== canvas || S.touched) return; const q = Edge.detectIn(canvas, W, H, 900); if (q && $('#scPoly')) { S.corners = q; draw(); } });
+    const auto = fine || preset || detect(canvas);
+    S.corners = auto ? inset(auto) : defCorners(canvas);
+    if (!Edge.ready()) Edge.load().then(ok => { if (!ok || S.src !== canvas || S.touched) return; const q = Edge.detectIn(canvas, W, H, 900); if (q && $('#scPoly')) { S.corners = inset(q); draw(); } });
     el().innerHTML = top('Подвиньте углы к краям листа') + `
       <div class="sc-stage crop"><div class="sc-fit" id="scFit"><canvas id="scCanvas"></canvas>
         <svg id="scSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polygon id="scPoly"/>${[0, 1, 2, 3].map(i => `<circle data-k="${i}" r="${Math.max(W, H) * .03}"/>`).join('')}</svg><div class="sc-loupe" id="scLoupe" hidden><canvas width="150" height="150"></canvas><i></i></div></div></div>
@@ -221,7 +253,7 @@ const Scanner = (() => {
   function warp(src, q) {
     const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
     let W = Math.max(dist(q[0], q[1]), dist(q[3], q[2])), H = Math.max(dist(q[0], q[3]), dist(q[1], q[2]));
-    const k = Math.min(1, 1700 / Math.max(W, H)); W = Math.max(40, Math.round(W * k)); H = Math.max(40, Math.round(H * k));
+    const k = Math.min(1, 2480 / Math.max(W, H)); W = Math.max(40, Math.round(W * k)); H = Math.max(40, Math.round(H * k));
     const h = homography([[0, 0], [W, 0], [W, H], [0, H]], q);
     const sw = src.width, sh = src.height, sd = src.getContext('2d').getImageData(0, 0, sw, sh).data;
     const out = document.createElement('canvas'); out.width = W; out.height = H;
@@ -236,26 +268,44 @@ const Scanner = (() => {
     }
     og.putImageData(od, 0, 0); return out;
   }
+  /* фильтры. «Документ» — как в TapScanner: бумага белая, печать чёрная, синяя ручка и печати остаются цветными */
   function filter(c, kind) {
     const W = c.width, H = c.height, out = document.createElement('canvas'); out.width = W; out.height = H;
     const g = out.getContext('2d'); g.drawImage(c, 0, 0); if (kind === 'orig') return out;
-    const im = g.getImageData(0, 0, W, H), d = im.data, n = W * H, L = new Float32Array(n);
-    for (let i = 0; i < n; i++) L[i] = .299 * d[i * 4] + .587 * d[i * 4 + 1] + .114 * d[i * 4 + 2];
-    if (kind === 'doc') {
-      const I = new Float64Array((W + 1) * (H + 1));
-      for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += L[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + row; } }
-      const r = Math.max(8, Math.round(Math.max(W, H) / 24));
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const x1 = Math.max(0, x - r), y1 = Math.max(0, y - r), x2 = Math.min(W, x + r + 1), y2 = Math.min(H, y + r + 1);
-        const mean = (I[y2 * (W + 1) + x2] - I[y1 * (W + 1) + x2] - I[y2 * (W + 1) + x1] + I[y1 * (W + 1) + x1]) / ((x2 - x1) * (y2 - y1));
-        L[y * W + x] = Math.min(255, L[y * W + x] / Math.max(30, mean) * 245);
+    const im = g.getImageData(0, 0, W, H), d = im.data;
+    // 1) фон бумаги: самый светлый цвет в каждом квадрате (текст тонкий, бумага — светлая)
+    const bs = Math.max(8, Math.round(Math.max(W, H) / 90)), gw = Math.ceil(W / bs), gh = Math.ceil(H / bs);
+    const bg = [new Float32Array(gw * gh), new Float32Array(gw * gh), new Float32Array(gw * gh)];
+    for (let by = 0; by < gh; by++) for (let bx = 0; bx < gw; bx++) {
+      let best = -1, r = 255, gg = 255, bb = 255;
+      for (let y = by * bs, ye = Math.min(H, y + bs); y < ye; y += 2) for (let x = bx * bs, xe = Math.min(W, x + bs); x < xe; x += 2) {
+        const i = (y * W + x) * 4, l = d[i] * 3 + d[i + 1] * 6 + d[i + 2];
+        if (l > best) { best = l; r = d[i]; gg = d[i + 1]; bb = d[i + 2]; }
+      }
+      const j = by * gw + bx; bg[0][j] = r; bg[1][j] = gg; bg[2][j] = bb;
+    }
+    // 2) там, где квадрат весь в тексте, берём бумагу от соседей; потом сглаживаем
+    const spread = (a, op, rad) => { const o = new Float32Array(a.length); for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) { let v = op === 'max' ? 0 : 0, n = 0; for (let yy = Math.max(0, y - rad); yy <= Math.min(gh - 1, y + rad); yy++) for (let xx = Math.max(0, x - rad); xx <= Math.min(gw - 1, x + rad); xx++) { const t = a[yy * gw + xx]; if (op === 'max') { if (t > v) v = t; } else { v += t; n++; } } o[y * gw + x] = op === 'max' ? v : v / n; } return o; };
+    for (let ch = 0; ch < 3; ch++) bg[ch] = spread(spread(bg[ch], 'max', 1), 'mean', 2);
+    // 3) делим на фон (бумага → белая, тени и синий оттенок уходят) и усиливаем контраст
+    const curve = new Uint8ClampedArray(512);
+    for (let i = 0; i < 512; i++) { const x = Math.min(1, i / 256 / .86); curve[i] = Math.round(255 * Math.pow(x, 1.7)); }
+    const bw = kind === 'bw';
+    for (let y = 0; y < H; y++) {
+      const fy = Math.min(gh - 1.001, Math.max(0, (y + .5) / bs - .5)), y0 = fy | 0, ty = fy - y0;
+      for (let x = 0; x < W; x++) {
+        const fx = Math.min(gw - 1.001, Math.max(0, (x + .5) / bs - .5)), x0 = fx | 0, tx = fx - x0;
+        const j = y0 * gw + x0, i = (y * W + x) * 4;
+        let o0, o1, o2;
+        for (let ch = 0; ch < 3; ch++) {
+          const B = bg[ch], v = (B[j] * (1 - tx) + B[j + 1] * tx) * (1 - ty) + (B[j + gw] * (1 - tx) + B[j + gw + 1] * tx) * ty;
+          const n = Math.min(511, Math.round(d[i + ch] / Math.max(40, v) * 256));
+          if (ch === 0) o0 = curve[n]; else if (ch === 1) o1 = curve[n]; else o2 = curve[n];
+        }
+        if (bw) { const l = (o0 * 3 + o1 * 6 + o2) / 10; o0 = o1 = o2 = l; }
+        d[i] = o0; d[i + 1] = o1; d[i + 2] = o2;
       }
     }
-    const hist = new Uint32Array(256); L.forEach(v => hist[Math.max(0, Math.min(255, v | 0))]++);
-    let lo = 0, hi = 255, acc = 0; for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc > n * .01) { lo = i; break; } }
-    acc = 0; for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc > n * .01) { hi = i; break; } }
-    const sc = 255 / Math.max(20, hi - lo);
-    for (let i = 0; i < n; i++) { let v = (L[i] - lo) * sc; if (kind === 'doc') v = v > 200 ? 255 : v * .9; v = Math.max(0, Math.min(255, v)); d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; }
     g.putImageData(im, 0, 0); return out;
   }
   function thumb(c, w = 260) { const k = w / c.width, t = document.createElement('canvas'); t.width = w; t.height = Math.round(c.height * k); t.getContext('2d').drawImage(c, 0, 0, t.width, t.height); return t.toDataURL('image/jpeg', .7); }
