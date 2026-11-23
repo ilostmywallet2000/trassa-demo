@@ -393,8 +393,8 @@ const Scanner = (() => {
     const w = await ocrWorker(), out = [];
     for (let i = 0; i < canvases.length; i++) {
       S.onProgress = m => { if (m.status === 'recognizing text' && onP) onP((i + m.progress) / canvases.length, i); };
-      let c = canvases[i]; const k = Math.min(1, 1800 / Math.max(c.width, c.height));
-      if (k < 1) { const t = document.createElement('canvas'); t.width = Math.round(c.width * k); t.height = Math.round(c.height * k); t.getContext('2d').drawImage(c, 0, 0, t.width, t.height); c = t; }
+      let c = canvases[i]; const k = Math.min(2, 1900 / Math.max(c.width, c.height));   // мелкие сканы увеличиваем, крупные уменьшаем
+      if (Math.abs(k - 1) > .05) { const t = document.createElement('canvas'); t.width = Math.round(c.width * k); t.height = Math.round(c.height * k); const tg = t.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(c, 0, 0, t.width, t.height); c = t; }
       const { data } = await w.recognize(filter(c, 'bw'));
       out.push(clean(data.text || ''));
     }
@@ -435,11 +435,12 @@ function ttnAnalyze(raw) {
   const T = low.replace(/[a-z]/g, c => LAT2CYR[c] || c).replace(/\s+/g, ' ');
   const G = [
     [2, /накладн/], [1, /грузоотпр|отправител/], [1, /грузопол|получател/], [1, /перевозчик/], [1, /водител/],
-    [1, /погрузк|при[её]м\w* груза/], [1, /выгрузк|разгрузк|сдач\w* груза/], [1, /брутто|нетто|масс[аы]/],
-    [1, /транспортн\w* средств|гос\w*\.? ?номер|регистрац\w* номер|марка/], [1, /наименовани\w* груза|груз/],
+    [1, /погрузк|при[её]м\w* груз/], [1, /выгрузк|разгрузк|сдач\w* груз|в[ыь][дл]ач\w* груз/], [1, /брутто|нетто|масс[аы]/],
+    [1, /транспортн\w* средств|гос\w*\.? ?номер|регистрац\w* номер|марка/], [1, /груз/],
+    [1, /переадрес|ресовк/], [1, /стоимост\w* перевоз|перевозк\w* груз/], [1, /навалом|насыпью/],
   ];
   const hits = G.filter(([, r]) => r.test(T)), score = hits.reduce((s, [w]) => s + w, 0);
-  const transport = /перевозчик|водител|транспортн|погрузк|выгрузк/.test(T);
+  const transport = /перевозчик|водител|транспортн|погрузк|выгрузк|перевозк/.test(T);
   const isTtn = score >= 5 && transport;
   // даты: 23.11.2026, 23.11.26, «23» ноября 2026
   const dates = new Set(), add = (d, m, y) => { d = +d; m = +m; y = +y; if (y < 100) y += 2000; if (d < 1 || d > 31 || m < 1 || m > 12 || y < 2015 || y > 2099) return; dates.add(`${y}-${pad(m)}-${pad(d)}`); };
@@ -459,7 +460,7 @@ function ttnVerdict(t, a, hash) {
   if (!a.isTtn) return { s: 'bad', why: 'не похоже на ТТН', msg: 'Это не похоже на ТТН', sub: 'Снимите накладную целиком, ровно и при хорошем свете. Чеки, паспорта и другие бумаги не подходят.' };
   const from = isoDay(t.takenAt - 2 * DAY), to = isoDay(now() + DAY), fresh = a.dates.filter(x => x >= from && x <= to), date = fresh[fresh.length - 1] || '';
   if (a.no) for (const x of same) if (x.ttn.no && x.ttn.no === a.no && (x.ttn.date && date ? x.ttn.date === date : a.no.length >= 4)) { const o = O(x.orderId), d = D(x.driverId); return { s: 'dup', no: a.no, date, msg: `ТТН №${a.no} уже есть в системе`, sub: `Сдана к рейсу №${o ? o.no : '?'} · ${d ? d.name : ''} · ${fmtDay(x.doneAt)}` }; }
-  if (!a.dates.length) return { s: 'bad', why: 'не видна дата', no: a.no, msg: 'Не видна дата на ТТН', sub: 'Переснимите так, чтобы дата накладной была чёткой.' };
+  if (!a.dates.length) return { s: 'warn', why: 'дата не прочиталась', no: a.no, msg: `ТТН${a.no ? ' №' + a.no : ''} распознана, дата не прочиталась`, sub: 'Если дата написана от руки — это нормально: диспетчер сверит её сам. Можно завершать.' };
   if (!date) { const last = a.dates.filter(x => x <= to).pop() || a.dates[a.dates.length - 1]; return { s: 'bad', why: 'старая дата ' + fmtIso(last), no: a.no, date: last, msg: `Старая ТТН — от ${fmtIso(last)}`, sub: 'Нужна накладная этого рейса, с сегодняшней датой.' }; }
   return { s: 'ok', no: a.no, date, msg: `ТТН${a.no ? ' №' + a.no : ''} от ${fmtIso(date)}`, sub: 'Накладная распознана, дата свежая' };
 }

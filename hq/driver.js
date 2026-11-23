@@ -152,7 +152,7 @@ A.completeTrip = d => {
     <div id="ctPrev" class="ttn-prev"></div>
     <div id="ctChk"></div>
     <div class="row gap wrap"><button class="btn acc grow" id="ctScan">${ic('scan')}Сканировать ТТН</button><button class="btn soft" id="ctUp">${ic('upload')}Фото</button></div>
-    <p class="hint">${ic('shield')}Телефон сам проверит: это накладная, дата свежая и такой ТТН ещё не было.</p>
+    <p class="hint">${ic('shield')}Снимите все страницы ТТН, первую — с номером и датой. Телефон сам проверит, что это накладная, дата свежая и такой ТТН ещё не было.</p>
     <div class="row end gap"><button class="btn ghost" data-close>Отмена</button><button class="btn ok" id="ctGo" disabled>${ic('flag')}Завершить рейс</button></div>`, { title: `Завершить рейс №${o.no}`, sub: `${o.cargo} · ${v ? v.plate : ''}` });
   const box = (cls, icon, title, sub, extra) => `<div class="ttn-chk ${cls}">${ic(icon)}<div><b>${esc(title)}</b><span>${esc(sub || '')}</span>${extra || ''}</div></div>`;
   const paint = () => {
@@ -162,10 +162,11 @@ A.completeTrip = d => {
     if (!thumbs.length) c.innerHTML = '';
     else if (!chk) c.innerHTML = box('wait', 'scan', 'Проверяем ТТН…', 'Читаем текст на устройстве', '<i class="ttn-bar"><em id="ctBar"></em></i>');
     else if (chk.s === 'ok') c.innerHTML = box('ok', 'check', chk.msg, chk.sub);
+    else if (chk.s === 'warn') c.innerHTML = box('warn', 'alert', chk.msg, chk.sub);
     else if (chk.s === 'dup') c.innerHTML = box('bad', 'x', chk.msg, chk.sub + '. Прикрепить её второй раз нельзя.');
     else if (chk.s === 'err') c.innerHTML = box('bad', 'x', 'Проверка не запустилась', chk.sub, '<button class="btn soft sm" id="ctRe">Проверить ещё раз</button>');
     else c.innerHTML = box('bad', 'x', chk.msg, chk.sub, fails >= 2 ? '<button class="btn ghost sm" id="ctMan">ТТН настоящая, но не читается — отправить диспетчеру</button>' : '');
-    m.$('#ctGo').disabled = !(chk && (chk.s === 'ok' || chk.manual));
+    m.$('#ctGo').disabled = !(chk && (chk.s === 'ok' || chk.s === 'warn' || chk.manual));
     const re = m.$('#ctRe'); if (re) re.onclick = check;
     const mn = m.$('#ctMan'); if (mn) mn.onclick = async () => { if (!await confirmBox('Отправить на проверку?', 'Рейс завершится, но диспетчер увидит пометку «ТТН на проверке» и сверит накладную сам.', 'Отправить')) return; chk.manual = true; mn.remove(); m.$('#ctGo').disabled = false; m.$('#ctGo').click(); };
   };
@@ -196,7 +197,7 @@ A.completeTrip = d => {
     const tn = m.$('#ctT') ? +String(m.$('#ctT').value).replace(',', '.') : null;
     if (m.$('#ctT') && !tn) { m.$('#ctT').focus(); return toast('Укажите вес по ТТН', 'По этой заявке оплата за тонну', 'bad'); }
     if (!pages.length) return toast('Прикрепите ТТН', 'Без накладной рейс не завершить', 'bad');
-    if (!chk || !(chk.s === 'ok' || chk.manual)) return toast('ТТН не прошла проверку', chk ? chk.msg : 'Подождите, идёт проверка', 'bad');
+    if (!chk || !(chk.s === 'ok' || chk.s === 'warn' || chk.manual)) return toast('ТТН не прошла проверку', chk ? chk.msg : 'Подождите, идёт проверка', 'bad');
     const b = m.$('#ctGo'); b.disabled = true; b.textContent = 'Сохраняем…';
     const blob = await makePdf(pages);
     const fileId = await FS.put(blob, `ТТН ${o.no}`, 'application/pdf');
