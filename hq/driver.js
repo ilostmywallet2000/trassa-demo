@@ -145,45 +145,64 @@ Drv.trip = () => {
 A.cancelTrip = async d => { if (await confirmBox('Отказаться от рейса?', 'Рейс вернётся в заявку, диспетчер увидит.', 'Отказаться', 'danger')) { Act.cancelTrip(d.id); toast('Вы отказались от рейса'); } };
 A.completeTrip = d => {
   const t = db.trips.find(x => x.id === d.id), o = O(t.orderId), v = V(t.vehicleId);
-  let pages = [], thumbs = [], extFile = null;
+  let pages = [], thumbs = [], chk = null, run = 0, fails = 0;
   const m = modal(`
     <div class="form ${o.unit === 't' ? 'two' : ''}"><label>Объём по ТТН, м³<div class="stepper sm"><button type="button" data-s="-1">−</button><input id="ctM" type="number" step="0.5" value="${t.m3 || o.m3}"><button type="button" data-s="1">+</button></div></label>${o.unit === 't' ? `<label>Вес по ТТН, т<input id="ctT" type="text" inputmode="decimal" autocomplete="off" placeholder="например 27,5"></label>` : ''}</div>
-    <div class="aud-h">ТТН</div>
+    <div class="aud-h">ТТН <span class="req">обязательно</span></div>
     <div id="ctPrev" class="ttn-prev"></div>
-    <div class="row gap wrap"><button class="btn acc grow" id="ctScan">${ic('scan')}Сканировать ТТН</button><button class="btn soft" id="ctUp">${ic('upload')}Файл</button></div>
-    <p class="hint">${ic('layers')}Можно снять несколько страниц — получится один PDF.</p>
-    <div class="row end gap"><button class="btn ghost" data-close>Отмена</button><button class="btn ok" id="ctGo">${ic('flag')}Завершить рейс</button></div>`, { title: `Завершить рейс №${o.no}`, sub: `${o.cargo} · ${v ? v.plate : ''}` });
-  const prev = () => {
-    m.$('#ctPrev').innerHTML = thumbs.length ? `${thumbs.map((t, i) => `<div class="tp"><img src="${t}"><b>${i + 1}</b></div>`).join('')}<span class="tp-n">${thumbs.length} стр. → PDF</span>` : extFile ? `<div class="tp file">${ic('file')}<b>${esc(extFile.name)}</b></div>` : `<div class="ttn-empty">${ic('file')}ТТН ещё не прикреплена</div>`;
+    <div id="ctChk"></div>
+    <div class="row gap wrap"><button class="btn acc grow" id="ctScan">${ic('scan')}Сканировать ТТН</button><button class="btn soft" id="ctUp">${ic('upload')}Фото</button></div>
+    <p class="hint">${ic('shield')}Телефон сам проверит: это накладная, дата свежая и такой ТТН ещё не было.</p>
+    <div class="row end gap"><button class="btn ghost" data-close>Отмена</button><button class="btn ok" id="ctGo" disabled>${ic('flag')}Завершить рейс</button></div>`, { title: `Завершить рейс №${o.no}`, sub: `${o.cargo} · ${v ? v.plate : ''}` });
+  const box = (cls, icon, title, sub, extra) => `<div class="ttn-chk ${cls}">${ic(icon)}<div><b>${esc(title)}</b><span>${esc(sub || '')}</span>${extra || ''}</div></div>`;
+  const paint = () => {
+    m.$('#ctPrev').innerHTML = thumbs.length ? `${thumbs.map((t, i) => `<div class="tp"><img src="${t}"><b>${i + 1}</b></div>`).join('')}<span class="tp-n">${thumbs.length} стр. → PDF</span>` : `<div class="ttn-empty">${ic('file')}ТТН ещё не прикреплена</div>`;
     m.$('#ctScan').innerHTML = ic('scan') + (thumbs.length ? 'Переснять ТТН' : 'Сканировать ТТН');
+    const c = m.$('#ctChk');
+    if (!thumbs.length) c.innerHTML = '';
+    else if (!chk) c.innerHTML = box('wait', 'scan', 'Проверяем ТТН…', 'Читаем текст на устройстве', '<i class="ttn-bar"><em id="ctBar"></em></i>');
+    else if (chk.s === 'ok') c.innerHTML = box('ok', 'check', chk.msg, chk.sub);
+    else if (chk.s === 'dup') c.innerHTML = box('bad', 'x', chk.msg, chk.sub + '. Прикрепить её второй раз нельзя.');
+    else if (chk.s === 'err') c.innerHTML = box('bad', 'x', 'Проверка не запустилась', chk.sub, '<button class="btn soft sm" id="ctRe">Проверить ещё раз</button>');
+    else c.innerHTML = box('bad', 'x', chk.msg, chk.sub, fails >= 2 ? '<button class="btn ghost sm" id="ctMan">ТТН настоящая, но не читается — отправить диспетчеру</button>' : '');
+    m.$('#ctGo').disabled = !(chk && (chk.s === 'ok' || chk.manual));
+    const re = m.$('#ctRe'); if (re) re.onclick = check;
+    const mn = m.$('#ctMan'); if (mn) mn.onclick = async () => { if (!await confirmBox('Отправить на проверку?', 'Рейс завершится, но диспетчер увидит пометку «ТТН на проверке» и сверит накладную сам.', 'Отправить')) return; chk.manual = true; mn.remove(); m.$('#ctGo').disabled = false; m.$('#ctGo').click(); };
   };
-  prev();
+  async function check() {
+    const my = ++run; chk = null; paint();
+    try {
+      const hash = Scanner.fingerprint(pages[0]);
+      const texts = await Scanner.ocr(pages, p => { const bar = m.$('#ctBar'); if (bar) bar.style.width = Math.round(8 + p * 92) + '%'; });
+      if (my !== run) return;
+      chk = Object.assign(ttnVerdict(t, ttnAnalyze(texts.join('\n')), hash), { hash });
+      if (chk.s === 'bad') fails++;
+    } catch (e) { if (my !== run) return; chk = { s: 'err', sub: location.protocol === 'file:' ? 'Откройте приложение через сервер' : String(e.message || e) }; }
+    paint();
+  }
+  const got = (p, th) => { pages = p; thumbs = th; check(); };
+  paint();
   m.el.addEventListener('click', e => { const s = e.target.closest('[data-s]'); if (s) { const i = m.$('#ctM'); i.value = Math.max(0, (+i.value || 0) + +s.dataset.s); } });
-  m.$('#ctScan').onclick = () => Scanner.open({ title: 'ТТН', multi: true, ocr: false, onDone: r => { pages = r.pages; thumbs = r.thumbs; extFile = null; prev(); } });
+  m.$('#ctScan').onclick = () => Scanner.open({ title: 'ТТН', multi: true, ocr: false, onDone: r => got(r.pages, r.thumbs) });
   m.$('#ctUp').onclick = () => {
-    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
     inp.onchange = async () => {
-      const fs = Array.from(inp.files || []); if (!fs.length) return;
-      const pdf = fs.find(f => f.type === 'application/pdf');
-      if (pdf) { extFile = pdf; pages = []; thumbs = []; }
-      else { pages = []; for (const f of fs) pages.push(await fileToCanvas(f)); thumbs = pages.map(c => Scanner.thumb(c)); extFile = null; }
-      prev();
+      const fs = Array.from(inp.files || []).filter(f => /^image\//.test(f.type)); if (!fs.length) return toast('Нужна фотография ТТН', 'PDF и другие файлы не подходят — снимите накладную камерой', 'bad');
+      const p = []; for (const f of fs) p.push(await fileToCanvas(f)); got(p, p.map(c => Scanner.thumb(c)));
     };
     inp.click();
   };
   m.$('#ctGo').onclick = async () => {
     const tn = m.$('#ctT') ? +String(m.$('#ctT').value).replace(',', '.') : null;
     if (m.$('#ctT') && !tn) { m.$('#ctT').focus(); return toast('Укажите вес по ТТН', 'По этой заявке оплата за тонну', 'bad'); }
-    if (!pages.length && !extFile && !await confirmBox('Без ТТН?', 'Диспетчер увидит, что рейс завершён без накладной.', 'Завершить без ТТН', 'danger')) return;
+    if (!pages.length) return toast('Прикрепите ТТН', 'Без накладной рейс не завершить', 'bad');
+    if (!chk || !(chk.s === 'ok' || chk.manual)) return toast('ТТН не прошла проверку', chk ? chk.msg : 'Подождите, идёт проверка', 'bad');
     const b = m.$('#ctGo'); b.disabled = true; b.textContent = 'Сохраняем…';
-    let ttn = null;
-    if (pages.length || extFile) {
-      const blob = extFile || await makePdf(pages);
-      const fileId = await FS.put(blob, `ТТН ${o.no}`, 'application/pdf');
-      ttn = { fileId, pages: pages.length || 1, mime: 'application/pdf', thumb: thumbs[0] || null, size: blob.size };
-    }
+    const blob = await makePdf(pages);
+    const fileId = await FS.put(blob, `ТТН ${o.no}`, 'application/pdf');
+    const ttn = { fileId, pages: pages.length, mime: 'application/pdf', thumb: thumbs[0] || null, size: blob.size, no: chk.no || '', date: chk.date || '', hash: chk.hash || '', check: chk.s === 'ok' ? 'ok' : 'review', why: chk.s === 'ok' ? '' : chk.why || chk.msg };
     Act.completeTrip(t.id, +m.$('#ctM').value || 0, ttn, tn);
-    m.close(); toast('Рейс завершён', `${m3(+m.$('#ctM').value || 0)}${ttn ? ' · ТТН ' + ttn.pages + ' стр.' : ''}`, 'ok');
+    m.close(); toast('Рейс завершён', `${m3(+m.$('#ctM').value || 0)} · ${ttn.check === 'ok' ? 'ТТН проверена' : 'ТТН на проверке у диспетчера'}`, 'ok');
   };
 };
 

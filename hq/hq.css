@@ -1150,3 +1150,21 @@ fieldset { min-inline-size: 0; }
 .sc-a > .btn { flex: 1 1 0; min-width: 0; }
 @media (max-width: 360px) { .sc-a > .btn { padding: 0 10px; font-size: 14px; gap: 6px; } }
 html, body { overflow-x: clip; }   /* clip, не hidden: hidden ломает «липкие» панели */
+
+/* ---------- проверка ТТН ---------- */
+.aud-h .req { font-size: 11px; letter-spacing: .04em; text-transform: none; color: var(--acc-text); background: var(--acc-soft); border-radius: 99px; padding: 1px 9px; }
+.ttn-chk { display: flex; gap: 11px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; margin: 0 0 12px; border: 1px solid var(--line); background: var(--card2); }
+.ttn-chk > .ic { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+.ttn-chk > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.ttn-chk b { font-size: 15px; line-height: 1.3; }
+.ttn-chk span { font-size: 13px; color: var(--mute); line-height: 1.4; }
+.ttn-chk .btn { align-self: flex-start; margin-top: 8px; white-space: normal; text-align: left; height: auto; min-height: 34px; padding-top: 7px; padding-bottom: 7px; }
+.ttn-chk.ok { background: var(--ok-soft); border-color: transparent; } .ttn-chk.ok > .ic { color: var(--ok); }
+.ttn-chk.bad { background: var(--bad-soft); border-color: transparent; } .ttn-chk.bad > .ic { color: var(--bad); }
+.ttn-chk.warn { background: var(--warn-soft); border-color: transparent; } .ttn-chk.warn > .ic { color: var(--warn); }
+.ttn-chk.wait > .ic { color: var(--acc-text); animation: ttnPulse 1.2s ease-in-out infinite; }
+.ttn-bar { display: block; height: 5px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 7px; }
+.ttn-bar em { display: block; height: 100%; width: 6%; background: var(--acc); border-radius: 99px; transition: width .3s; }
+@keyframes ttnPulse { 50% { opacity: .35; } }
+.sd-ttn.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+.doc-view + .ttn-chk { margin-top: 12px; }

@@ -153,7 +153,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
-const APP_VER = '0.4.7';
+const APP_VER = '0.4.8';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -254,6 +254,7 @@ function orderRates(o) {
   return { unit, u: UNIT[unit], rd: +rd || 0, rc: +o.rateCo || 0 };
 }
 const tripQty = (t, o) => (o || O(t.orderId) || {}).unit === 't' ? (+t.tn || 0) : (+t.m3 || 0);   // м³ или тонны по ТТН
+const ttnFlag = t => t.ttn && t.ttn.check === 'review';   // ТТН не распознана — диспетчер проверяет сам
 const tripPay = t => { const o = O(t.orderId); return o ? tripQty(t, o) * orderRates(o).rd : 0; };    // водителю
 const tripBill = t => { const o = O(t.orderId); return o ? tripQty(t, o) * orderRates(o).rc : 0; };   // компании от заказчика
 const perUnit = (n, u) => `${rub(n)} за ${u === 'т' ? 'тонну' : 'м³'}`;
@@ -411,9 +412,10 @@ const Act = {
       t.state = 'done'; t.doneAt = now(); t.m3 = +m3v || 0; t.ttn = ttn || null; if (tn != null) t.tn = +tn || 0;
       if (!t.confirmedAt) t.confirmedAt = now();
       const o = O(t.orderId), d = D(t.driverId);
-      ev('done', `${d.name} выполнил рейс №${o.no} · ${m3(t.m3)}${ttn ? ' · ТТН ' + ttn.pages + ' стр.' : ' · без ТТН'}`, ['disp'], { tripId: t.id });
+      ev('done', `${d.name} выполнил рейс №${o.no} · ${m3(t.m3)}${ttn ? (ttn.check === 'review' ? ' · ⚠ ТТН на проверке: ' + ttn.why : ' · ТТН' + (ttn.no ? ' №' + ttn.no : '') + ' проверена') : ' · без ТТН'}`, ['disp'], { tripId: t.id });
     });
   },
+  ttnOk(tid) { return tx(db => { const t = db.trips.find(x => x.id === tid); if (t && t.ttn) { t.ttn.check = 'disp'; t.ttn.okAt = now(); } }); },
   assignTrip(oid, did) {
     return tx(db => {
       const o = O(oid), d = D(did), v = vehOf(did);

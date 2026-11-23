@@ -473,7 +473,7 @@ function tripTable(ts, opt = {}) {
       <td>${plate(v, 'sm')}</td>
       <td>${tripChip(t)}${t.doneAt ? `<small>${fmtTime(t.doneAt)}</small>` : ''}</td>
       <td class="r">${t.state === 'done' ? m3(t.m3) : '<span class="muted">—</span>'}</td>
-      <td>${t.ttn ? `<button class="btn soft sm" data-a="openTtn" data-id="${t.id}">${ic('file')}${t.ttn.pages} стр.</button>` : t.state === 'done' ? '<span class="muted">нет</span>' : ''}</td>
+      <td>${t.ttn ? `<button class="btn ${ttnFlag(t) ? 'warn' : 'soft'} sm" data-a="openTtn" data-id="${t.id}">${ic(ttnFlag(t) ? 'alert' : 'file')}${ttnFlag(t) ? 'проверить' : t.ttn.no ? '№' + esc(t.ttn.no) : t.ttn.pages + ' стр.'}</button>` : t.state === 'done' ? '<span class="muted">нет</span>' : ''}</td>
       
     </tr>`;
   }).join('')}</tbody></table></div>`;
@@ -486,9 +486,16 @@ A.openTtn = async d => {
   const doc = { id: 'ttn', kind: 'ТТН', title: `ТТН №${o.no} от ${stamp}`, fileId: t.ttn.fileId, mime: t.ttn.mime, pages: t.ttn.pages, thumb: t.ttn.thumb, size: t.ttn.size, at: t.doneAt, by: dr.name };
   const f = await FS.get(doc.fileId), url = f ? URL.createObjectURL(f.blob) : null;
   const m = modal(`<div class="doc-view">${!f ? `<div class="doc-missing">${ic('file')}<b>Скан ещё не дошёл</b><span>Он отправляется с телефона водителя. Если там плохой интернет — откройте через минуту</span></div>` : doc.mime === 'application/pdf' ? pdfView(url, doc.thumb, doc.pages) : `<img class="doc-full" src="${url}">`}</div>
-    <div class="row gap wrap doc-acts"><button class="btn acc" id="tShare">${ic('share')}Поделиться</button>${f ? `<a class="btn soft" href="${url}" download="${esc(fileName(doc, dr))}">${ic('download')}Скачать</a><a class="btn soft" href="${url}" target="_blank">${ic('file')}Открыть</a>` : ''}</div>`, { title: doc.title, sub: `${dr.name} · ${t.ttn.pages} стр. · ${m3(t.m3)}`, wide: true });
+    ${ttnStatus(t)}
+    <div class="row gap wrap doc-acts">${ttnFlag(t) && who().role === 'disp' ? `<button class="btn ok" id="tOk">${ic('check')}ТТН в порядке</button>` : ''}<button class="btn acc" id="tShare">${ic('share')}Поделиться</button>${f ? `<a class="btn soft" href="${url}" download="${esc(fileName(doc, dr))}">${ic('download')}Скачать</a><a class="btn soft" href="${url}" target="_blank">${ic('file')}Открыть</a>` : ''}</div>`, { title: doc.title, sub: `${dr.name} · ${t.ttn.pages} стр. · ${m3(t.m3)}`, wide: true });
   m.$('#tShare').onclick = () => shareDoc(doc, dr);
+  if (m.$('#tOk')) m.$('#tOk').onclick = () => { Act.ttnOk(t.id); m.close(); toast('ТТН принята', `Рейс №${o.no} · ${dr.name}`, 'ok'); };
 };
+function ttnStatus(t) {
+  const x = t.ttn; if (!x || !x.check) return '';
+  if (x.check === 'review') return `<div class="ttn-chk warn">${ic('alert')}<div><b>Телефон не смог проверить ТТН</b><span>Причина: ${esc(x.why || '—')}. Сверьте номер и дату на скане сами.</span></div></div>`;
+  return `<div class="ttn-chk ok">${ic('check')}<div><b>${x.check === 'disp' ? 'ТТН принята диспетчером' : 'ТТН проверена автоматически'}</b><span>${x.no ? '№' + esc(x.no) + ' · ' : ''}${x.date ? 'дата ' + fmtIso(x.date) : ''}</span></div></div>`;
+}
 A.confirmTrip = d => { Act.confirmTrip(d.id); toast('Рейс подтверждён', '', 'ok'); };
 A.rejectTrip = async d => { if (await confirmBox('Отклонить рейс?', 'Рейс вернётся в заявку, водитель получит сообщение.', 'Отклонить', 'danger')) Act.rejectTrip(d.id, ''); };
 
@@ -501,7 +508,7 @@ function sdTrip(t, withDriver) {
   return `<div class="sd-row">
     <div class="sd-t"><b>${fmtTime(done ? t.doneAt : t.takenAt)}</b><small>${done ? 'сдал' : 'взял'}</small></div>
     <a class="sd-m" href="#/order/${o.id}" data-close><b>№${o.no} · ${esc(o.cargo)}</b><span>${withDriver ? esc(dr.name) + ' · ' : ''}${esc(o.from.addr)} → ${esc(o.to.addr)}</span></a>
-    <div class="sd-v">${done ? `<b>${m3(t.m3)}</b>` : '<b class="info">в рейсе</b>'}${t.ttn ? `<button class="sd-ttn" data-a="openTtn" data-id="${t.id}">${ic('file')}ТТН</button>` : done ? '<small>без ТТН</small>' : `<small>${ago(t.takenAt)}</small>`}</div>
+    <div class="sd-v">${done ? `<b>${m3(t.m3)}</b>` : '<b class="info">в рейсе</b>'}${t.ttn ? `<button class="sd-ttn ${ttnFlag(t) ? 'warn' : ''}" data-a="openTtn" data-id="${t.id}">${ic(ttnFlag(t) ? 'alert' : 'file')}${ttnFlag(t) ? 'проверить' : 'ТТН'}</button>` : done ? '<small>без ТТН</small>' : `<small>${ago(t.takenAt)}</small>`}</div>
   </div>`;
 }
 const sdSum = cells => `<div class="sd-sum">${cells.map(([v, l, c]) => `<div class="${c || ''}"><b>${v}</b><span>${l}</span></div>`).join('')}</div>`;

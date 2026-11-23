@@ -1,7 +1,7 @@
 /* Трасса HQ — работа без интернета: файлы приложения сохраняются на телефоне.
    Версию меняем при каждом обновлении, тогда телефон скачает новые файлы. */
-const CACHE = 'trassa-hq-v51';
-const CORE = ['./', './index.html', './hq.css?v=51', './core.js?v=51', './edge.js?v=51', './scanner.js?v=51', './ui.js?v=51', './disp.js?v=51', './driver.js?v=51', './mech.js?v=51', './main.js?v=51', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png'];
+const CACHE = 'trassa-hq-v52';
+const CORE = ['./', './index.html', './hq.css?v=52', './core.js?v=52', './edge.js?v=52', './scanner.js?v=52', './ui.js?v=52', './disp.js?v=52', './driver.js?v=52', './mech.js?v=52', './main.js?v=52', './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
