@@ -153,7 +153,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
-const APP_VER = '0.5.1';
+const APP_VER = '0.5.2';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -291,12 +291,13 @@ const QUICK_DEF = {
   disp: ['Общий салам', 'Принято', 'Спасибо!', 'Ожидайте', 'Где вы сейчас?', 'Новая заявка в чате', 'Будьте на связи', 'Перезвоню через 5 минут'],
 };
 const quickList = role => ((db.settings.quick || {})[role]) || QUICK_DEF[role] || [];
+const REST_H = 8;   // часов отдыха после «Закончить день» до выхода на линию
 const Act = {
   clockIn(did) {
     return tx(db => {
       const d = D(did); if (!d || d.status === 'line') return;
       if (!shiftOpen(did)) db.shifts.push({ id: uid('s'), driverId: did, start: now(), end: null });
-      d.status = 'line'; d.since = now(); d.breakdown = null;
+      d.status = 'line'; d.since = now(); d.breakdown = null; d.nextLine = null;
       const v = vehOf(did);
       ev('clock', `${d.name} начал день${v ? ' · ' + v.plate + ' ' + v.region : ''}`, ['disp']);
     });
@@ -306,7 +307,8 @@ const Act = {
       const d = D(did); if (!d) return;
       const s = shiftOpen(did); if (s) s.end = now();
       d.status = 'off'; d.since = now(); d.breakdown = null;
-      ev('clock', `${d.name} закончил работу`, ['disp']);
+      d.nextLine = now() + REST_H * HOUR;   // будильник: через 7 ч «через час на линию», через 8 ч — выход
+      ev('clock', `${d.name} закончил работу · будильник на ${fmtTime(d.nextLine)}`, ['disp']);
     });
   },
   breakdown(did, kind, reason, note, coords) {
@@ -415,6 +417,7 @@ const Act = {
       ev('done', `${d.name} выполнил рейс №${o.no} · ${m3(t.m3)}${ttn ? (ttn.check === 'review' ? ' · ⚠ ТТН на проверке: ' + ttn.why : ' · ТТН' + (ttn.no ? ' №' + ttn.no : '') + ' проверена') : ' · без ТТН'}`, ['disp'], { tripId: t.id });
     });
   },
+  skipNextLine(did) { return tx(db => { const d = D(did); if (d) d.nextLine = null; }); },
   setLineAlarm(did, la) { return tx(db => { const d = D(did); if (d) d.lineAlarm = Object.assign({ on: true, time: '07:00', days: [1, 2, 3, 4, 5, 6] }, d.lineAlarm || {}, la); }); },
   ttnOk(tid) { return tx(db => { const t = db.trips.find(x => x.id === tid); if (t && t.ttn) { t.ttn.check = 'disp'; t.ttn.okAt = now(); } }); },
   assignTrip(oid, did) {

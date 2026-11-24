@@ -22,8 +22,9 @@ function statusCard(d) {
 A.clockIn = () => { const w = who(); Act.clockIn(w.id); toast('Хорошего дня!', 'Вы на линии — можно брать рейсы', 'ok'); };
 A.clockOut = async () => {
   const w = who(), at = activeTrip(w.id);
-  if (!await confirmBox('Закончить день?', at ? 'У вас есть незавершённый рейс. Сначала лучше завершить его.' : 'Статус станет «Закончил работу».', 'Закончить', at ? 'danger' : 'acc')) return;
-  Act.clockOut(w.id); toast('День закончен', 'Спасибо за работу');
+  const t = now() + REST_H * HOUR;
+  if (!await confirmBox('Закончить день?', (at ? 'У вас есть незавершённый рейс. Сначала лучше завершить его. ' : 'Статус станет «Закончил работу». ') + `Будильник зазвонит в ${fmtTime(t - HOUR)} и в ${fmtTime(t)} — через ${REST_H} часов на линию.`, 'Закончить', at ? 'danger' : 'acc')) return;
+  Act.clockOut(w.id); toast('День закончен, спасибо за работу', HAS_ALARM ? `Будильник: ${fmtTime(t - HOUR)} и ${fmtTime(t)}` : 'Будильник звонит в Android-приложении', 'ok');
 };
 A.fixed = () => { Act.fixed(who().id); toast('Вы снова на линии', '', 'ok'); };
 A.breakdown = () => {
@@ -234,19 +235,25 @@ const LA_DEF = { on: false, time: '07:00', days: [1, 2, 3, 4, 5, 6] };
 const lineAlarm = d => Object.assign({}, LA_DEF, (d && d.lineAlarm) || {});
 const HAS_ALARM = !!(window.TrassaApp && window.TrassaApp.alarmSet);
 /* ближайшие выходы на линию (до 7 дней вперёд) */
+const nextLineAt = d => d && d.nextLine && d.nextLine > now() && d.status === 'off' ? d.nextLine : 0;
 function lineStarts(d, n) {
-  const la = lineAlarm(d), out = []; if (!la.on || !la.days.length) return out;
+  const la = lineAlarm(d), nl = nextLineAt(d), out = nl ? [nl] : [];
+  if (!la.on || !la.days.length) return out.slice(0, n || 99);
   const [hh, mm] = la.time.split(':').map(Number), t0 = startOfDay(now());
   for (let k = 0; k < 8 && out.length < (n || 99); k++) {
     const day = new Date(t0 + k * DAY + 12 * HOUR); day.setHours(hh, mm, 0, 0); const at = day.getTime();
     if (!la.days.includes(day.getDay()) || at <= now()) continue;
     if (k === 0 && d.status !== 'off') continue;   // сегодня уже на линии — сегодняшний будильник не нужен
+    if (nl && at < nl + 12 * HOUR) continue;        // эту смену уже задаёт будильник после «Закончить день»
     out.push(at);
   }
-  return out;
+  out.sort((a, b) => a - b);
+  return out.slice(0, n || 99);
 }
 const dayWord = at => { const k = Math.round((startOfDay(at) - startOfDay(now())) / DAY); return k === 0 ? 'сегодня' : k === 1 ? 'завтра' : WDN[new Date(at).getDay()].toLowerCase() + ' ' + new Date(at).getDate(); };
 function scAlarm(d) {
+  const nl = nextLineAt(d);
+  if (nl) return `<div class="sc-alarm rest">${ic('bell')}<span>Будильник: в ${fmtTime(nl - HOUR)} — «через час на линию», в ${fmtTime(nl)} — выход</span><button data-a="laSkip">Не будить</button></div>`;
   const la = lineAlarm(d), st = la.on && lineStarts(d, 1)[0];
   return la.on ? `<a class="sc-alarm" href="#/me">${ic('bell')}${st ? `Будильник: ${dayWord(st)}, выход в ${fmtTime(st)}` : 'Будильник включён'}</a>` : `<a class="sc-alarm off" href="#/me">${ic('bell')}Включить будильник на линию</a>`;
 }
@@ -278,7 +285,7 @@ function alarmStatus() { if (!HAS_ALARM) return null; try { return JSON.parse(Tr
 function laForm(d, scope) {
   const la = lineAlarm(d);
   return `<div class="la-form" data-did="${d.id}">
-    <div class="sw-row"><div><b>Будильник на линию</b><span>За час до выхода и в минуту выхода — на весь экран, со звуком</span></div><button class="switch ${la.on ? 'on' : ''}" data-a="laToggle" data-id="${d.id}"><i></i></button></div>
+    <div class="sw-row"><div><b>${scope === 'driver' ? 'Ещё и по расписанию' : 'Будильник по расписанию'}</b><span>В выбранные дни: за час до выхода и в минуту выхода</span></div><button class="switch ${la.on ? 'on' : ''}" data-a="laToggle" data-id="${d.id}"><i></i></button></div>
     <div class="la-set ${la.on ? '' : 'off'}">
       <label class="la-time"><span>Время выхода</span><input type="time" value="${la.time}" data-la-time="${d.id}" ${la.on ? '' : 'disabled'}></label>
       <div class="la-days">${WD_ORDER.map(k => `<button class="${la.days.includes(k) ? 'on' : ''}" data-a="laDay" data-id="${d.id}" data-v="${k}" ${la.on ? '' : 'disabled'}>${WDN[k]}</button>`).join('')}</div>
@@ -304,8 +311,9 @@ function laCard(d) {
       <button class="btn soft la-test" data-a="laTest">${ic('bell')}Проверить будильник</button>
       <p class="hint">${ic('sparkle')}Нажмите, затем закройте приложение и заблокируйте экран. Через минуту должен зазвонить будильник. Если не зазвонил — проверьте пункты выше.</p></div>`;
   }
-  return `<div class="card" id="laCard">${laForm(d, 'driver')}${la.on ? perms : ''}</div>`;
+  return `<div class="card" id="laCard"><div class="la-auto">${ic('bell')}<div><b>После «Закончить день» будильник ставится сам</b><span>Через ${REST_H - 1} часов — «через час на линию», через ${REST_H} — «пора на линию». Звук — на полную громкость.</span></div></div>${laForm(d, 'driver')}${perms}</div>`;
 }
+A.laSkip = async () => { if (!await confirmBox('Не будить?', 'Будильник после смены отменится — например, если завтра выходной.', 'Не будить')) return; Act.skipNextLine(who().id); toast('Будильник отменён', ''); };
 A.laAskNotif = () => TrassaApp.askNotif();
 A.laAskBattery = () => TrassaApp.askBattery();
 A.laAskFull = () => TrassaApp.askFull();
