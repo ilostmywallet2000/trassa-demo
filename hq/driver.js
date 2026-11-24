@@ -8,7 +8,8 @@ function statusCard(d) {
   const v = vehOf(d.id), sh = shiftOpen(d.id);
   if (d.status === 'off') return `<div class="scard off">
       <div class="sc-l"><small>Статус</small><b>Не на линии</b><span>${v ? `Машина ${v.plate} ${v.region}${v.state === 'repair' ? ' — в ремонте' : ''}` : 'Машина не закреплена — обратитесь к механику'}</span></div>
-      <button class="btn acc xl" data-a="clockIn">${ic('play')}Начать день</button></div>`;
+      <button class="btn acc xl" data-a="clockIn">${ic('play')}Начать день</button>
+      ${scAlarm(d)}</div>`;
   if (d.status === 'line') return `<div class="scard line">
       <div class="sc-l"><small>Статус</small><b><i class="sdot ok"></i>На линии</b><span>${sh ? 'с ' + fmtTime(sh.start) + ' · ' + dur(now() - sh.start) : ''}</span></div>
       <div class="sc-a"><button class="btn warn" data-a="breakdown">${ic('wrench')}Поломка</button><button class="btn ghost" data-a="clockOut">${ic('power')}Закончить день</button></div></div>`;
@@ -216,8 +217,105 @@ Drv.me = () => {
   return `<div class="m-top"><div><b>Профиль</b></div><button class="icon-btn" data-a="logout" title="Выйти">${ic('logout')}</button></div>
     <div class="me-h">${avatar(d, 'xl')}<div><h2>${esc(d.name)}</h2>${statusChip(d)}<span class="muted">${esc(d.phone)}</span></div></div>
     <div class="mini-stats"><button data-a="stat" data-k="drv-7d" data-id="${d.id}"><b>${week.length}</b><span>рейсов за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-m3w" data-id="${d.id}"><b>${fmtNum(week.reduce((s, t) => s + t.m3, 0))}</b><span>м³ за 7 дней</span>${ic('right')}</button><button data-a="stat" data-k="drv-mydocs" data-id="${d.id}"><b>${d.docs.length}</b><span>документов</span>${ic('right')}</button></div>
+    ${laCard(d)}
     <div class="card"><div class="card-h"><b>Моя машина</b></div>${v ? `<div class="my-veh">${plate(v, 'lg')}<div><b>${esc(v.model)}</b><span>${esc(v.axle)} · ${v.volume} м³</span>${vehChip(v)}</div></div>` : '<p class="muted">Машина не закреплена. Механик назначит её в своём приложении.</p>'}</div>
     <div class="card" id="myDocs"><div class="card-h"><b>Мои документы</b></div>${docGrid({ type: 'driver', id: d.id }, d.docs, true)}</div>
     ${v && v.docs.length ? `<div class="card"><div class="card-h"><b>Документы машины</b></div>${docGrid({ type: 'vehicle', id: v.id }, v.docs, false)}</div>` : ''}
     <p class="app-ver">Трасса HQ ${APP_VER} · ${!Cloud.on ? 'данные только на этом телефоне' : Cloud.online === false ? 'нет связи с базой' : 'связь с базой есть'}</p>`;
 };
+
+
+/* ===================================================================
+   БУДИЛЬНИК НА ЛИНИЮ: за час и в минуту выхода (Android-приложение
+   ставит системный будильник — звонит при закрытом приложении)
+   =================================================================== */
+const WDN = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'], WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const LA_DEF = { on: false, time: '07:00', days: [1, 2, 3, 4, 5, 6] };
+const lineAlarm = d => Object.assign({}, LA_DEF, (d && d.lineAlarm) || {});
+const HAS_ALARM = !!(window.TrassaApp && window.TrassaApp.alarmSet);
+/* ближайшие выходы на линию (до 7 дней вперёд) */
+function lineStarts(d, n) {
+  const la = lineAlarm(d), out = []; if (!la.on || !la.days.length) return out;
+  const [hh, mm] = la.time.split(':').map(Number), t0 = startOfDay(now());
+  for (let k = 0; k < 8 && out.length < (n || 99); k++) {
+    const day = new Date(t0 + k * DAY + 12 * HOUR); day.setHours(hh, mm, 0, 0); const at = day.getTime();
+    if (!la.days.includes(day.getDay()) || at <= now()) continue;
+    if (k === 0 && d.status !== 'off') continue;   // сегодня уже на линии — сегодняшний будильник не нужен
+    out.push(at);
+  }
+  return out;
+}
+const dayWord = at => { const k = Math.round((startOfDay(at) - startOfDay(now())) / DAY); return k === 0 ? 'сегодня' : k === 1 ? 'завтра' : WDN[new Date(at).getDay()].toLowerCase() + ' ' + new Date(at).getDate(); };
+function scAlarm(d) {
+  const la = lineAlarm(d), st = la.on && lineStarts(d, 1)[0];
+  return la.on ? `<a class="sc-alarm" href="#/me">${ic('bell')}${st ? `Будильник: ${dayWord(st)}, выход в ${fmtTime(st)}` : 'Будильник включён'}</a>` : `<a class="sc-alarm off" href="#/me">${ic('bell')}Включить будильник на линию</a>`;
+}
+function laNextText(d) {
+  const st = lineStarts(d, 1)[0]; if (!st) return '';
+  return `${dayWord(st)}: в ${fmtTime(st - HOUR)} — «через час на линию», в ${fmtTime(st)} — «пора на линию»`;
+}
+let laSig = '';
+function alarmSync() {
+  if (!HAS_ALARM) return;
+  const w = who(); if (w.role !== 'driver') return;   // экран входа — будильники не трогаем
+  const d = D(w.id); if (!d) return;
+  const list = [];
+  lineStarts(d).slice(0, 7).forEach((at, i) => {
+    const tt = fmtTime(at);
+    if (at - HOUR > now()) list.push({ id: 100 + i * 2, at: at - HOUR, title: 'Через час на линию', text: `Выход в ${tt} · ${d.name}` });
+    list.push({ id: 101 + i * 2, at, title: 'Пора на линию', text: `Выход в ${tt}. Откройте «Трассу» и нажмите «Начать день»` });
+  });
+  const sig = JSON.stringify(list); if (sig === laSig) return;
+  laSig = sig; try { TrassaApp.alarmSet(sig); } catch (e) { console.warn(e); }
+}
+subs.add(alarmSync);
+setTimeout(() => { const lo = A.logout; A.logout = d => { if (HAS_ALARM && who().role === 'driver') { laSig = '[]'; try { TrassaApp.alarmSet('[]'); } catch (e) {} } return lo(d); }; }, 0);   // main.js объявляет A.logout позже — оборачиваем после загрузки
+setTimeout(alarmSync, 800);
+window.appAlarmRefresh = () => { laSig = ''; alarmSync(); if (route().page === 'me' && who().role === 'driver') render(); };
+function alarmStatus() { if (!HAS_ALARM) return null; try { return JSON.parse(TrassaApp.alarmStatus()); } catch (e) { return null; } }
+
+/* форма: включить, время, дни (у водителя и у диспетчера) */
+function laForm(d, scope) {
+  const la = lineAlarm(d);
+  return `<div class="la-form" data-did="${d.id}">
+    <div class="sw-row"><div><b>Будильник на линию</b><span>За час до выхода и в минуту выхода — на весь экран, со звуком</span></div><button class="switch ${la.on ? 'on' : ''}" data-a="laToggle" data-id="${d.id}"><i></i></button></div>
+    <div class="la-set ${la.on ? '' : 'off'}">
+      <label class="la-time"><span>Время выхода</span><input type="time" value="${la.time}" data-la-time="${d.id}" ${la.on ? '' : 'disabled'}></label>
+      <div class="la-days">${WD_ORDER.map(k => `<button class="${la.days.includes(k) ? 'on' : ''}" data-a="laDay" data-id="${d.id}" data-v="${k}" ${la.on ? '' : 'disabled'}>${WDN[k]}</button>`).join('')}</div>
+      ${la.on ? `<p class="la-next">${ic('clock')}${laNextText(d) || 'Нет ближайших выходов — выберите дни'}</p>` : ''}
+    </div></div>`;
+}
+A.laToggle = d => { const dr = D(d.id), la = lineAlarm(dr); Act.setLineAlarm(d.id, { on: !la.on }); if (!la.on) toast('Будильник включён', `Выход в ${la.time}`, 'ok'); };
+A.laDay = d => { const la = lineAlarm(D(d.id)), v = +d.v, days = la.days.includes(v) ? la.days.filter(x => x !== v) : la.days.concat(v); Act.setLineAlarm(d.id, { days }); };
+document.addEventListener('change', e => { const i = e.target.closest('[data-la-time]'); if (i && /^\d{2}:\d{2}$/.test(i.value)) { Act.setLineAlarm(i.dataset.laTime, { time: i.value }); toast('Время выхода сохранено', i.value, 'ok'); } });
+
+/* карточка в профиле водителя: настройки + разрешения телефона */
+function laCard(d) {
+  const st = alarmStatus(), la = lineAlarm(d);
+  let perms = '';
+  if (!HAS_ALARM) perms = `<p class="hint">${ic('alert')}Будильник звонит в Android-приложении «Трасса HQ». На iPhone пока не работает — подключим вместе с сервером.</p>`;
+  else if (st) {
+    const row = (ok, t, sub, act, btn) => `<div class="la-perm ${ok ? 'ok' : ''}"><i>${ic(ok ? 'check' : 'alert')}</i><div><b>${t}</b><span>${sub}</span></div>${ok ? '' : `<button class="btn acc sm" data-a="${act}">${btn}</button>`}</div>`;
+    perms = `<div class="la-perms"><div class="aud-h">Чтобы будильник точно зазвонил</div>
+      ${row(st.notif, 'Уведомления', st.notif ? 'Разрешены' : 'Без них будильник молчит', 'laAskNotif', 'Разрешить')}
+      ${st.full === false ? row(false, 'Поверх экрана', 'Чтобы будильник открывался на весь экран', 'laAskFull', 'Разрешить') : ''}
+      ${row(st.battery, 'Работа в фоне', st.battery ? 'Телефон не будет усыплять «Трассу»' : 'Иначе телефон может «усыпить» приложение', 'laAskBattery', 'Разрешить')}
+      ${st.tough ? `<div class="la-perm"><i>${ic('alert')}</i><div><b>Автозапуск · ${esc(st.maker)}</b><span>На этом телефоне его нужно включить вручную: откроется нужная страница — найдите «Трасса HQ» и включите переключатель, потом вернитесь назад</span></div><button class="btn acc sm" data-a="laAutostart">Открыть</button></div>` : ''}
+      <button class="btn soft la-test" data-a="laTest">${ic('bell')}Проверить будильник</button>
+      <p class="hint">${ic('sparkle')}Нажмите, затем закройте приложение и заблокируйте экран. Через минуту должен зазвонить будильник. Если не зазвонил — проверьте пункты выше.</p></div>`;
+  }
+  return `<div class="card" id="laCard">${laForm(d, 'driver')}${la.on ? perms : ''}</div>`;
+}
+A.laAskNotif = () => TrassaApp.askNotif();
+A.laAskBattery = () => TrassaApp.askBattery();
+A.laAskFull = () => TrassaApp.askFull();
+A.laAutostart = () => TrassaApp.openAutostart();
+A.laTest = () => {
+  const st = alarmStatus();
+  if (st && !st.notif) { toast('Сначала разрешите уведомления', 'Без них будильник не зазвонит', 'bad'); return TrassaApp.askNotif(); }
+  TrassaApp.alarmTest(60); toast('Будильник зазвонит через 1 минуту', 'Закройте приложение и заблокируйте экран', 'ok');
+};
+
+/* у диспетчера: окно «Выход на линию» для водителя */
+A.laEdit = d => { const dr = D(d.id); modal(`<div id="laModal">${laForm(dr, 'disp')}</div><p class="hint">${ic('alert')}Будильник на телефоне водителя обновится, когда он откроет приложение «Трасса HQ».</p><div class="row end gap"><button class="btn acc" data-close>Готово</button></div>`, { title: 'Выход на линию', sub: dr.name }); };
+subs.add(() => { const m = document.getElementById('laModal'); if (m) { const dr = D(m.firstElementChild.dataset.did); if (dr) m.innerHTML = laForm(dr, 'disp'); } });

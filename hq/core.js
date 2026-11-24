@@ -153,7 +153,7 @@ window.addEventListener('storage', e => {
 /* ---------- общая база (тест: Supabase). Все телефоны видят одни данные ----------
    Состояние — один документ с номером версии. Запись проходит, только если
    версия не изменилась; иначе берём свежие данные и повторяем свои действия. */
-const APP_VER = '0.4.9';
+const APP_VER = '0.5.0';
 const CLOUD = { url: 'https://thulxepvnpfbpxjippjw.supabase.co', key: 'sb_publishable_7PB161r5TSzVjPRZbibS3A_tLGqzVxM', id: 'main' };
 const Cloud = { on: !/[?&]local\b/.test(location.search), ver: -1, ready: false, pending: [], busy: false, online: null, prime: false, fails: 0, lastOk: 0, warned: 0 };
 async function api(path, opt = {}, ms = 30000) {
@@ -415,6 +415,7 @@ const Act = {
       ev('done', `${d.name} выполнил рейс №${o.no} · ${m3(t.m3)}${ttn ? (ttn.check === 'review' ? ' · ⚠ ТТН на проверке: ' + ttn.why : ' · ТТН' + (ttn.no ? ' №' + ttn.no : '') + ' проверена') : ' · без ТТН'}`, ['disp'], { tripId: t.id });
     });
   },
+  setLineAlarm(did, la) { return tx(db => { const d = D(did); if (d) d.lineAlarm = Object.assign({ on: true, time: '07:00', days: [1, 2, 3, 4, 5, 6] }, d.lineAlarm || {}, la); }); },
   ttnOk(tid) { return tx(db => { const t = db.trips.find(x => x.id === tid); if (t && t.ttn) { t.ttn.check = 'disp'; t.ttn.okAt = now(); } }); },
   assignTrip(oid, did) {
     return tx(db => {
